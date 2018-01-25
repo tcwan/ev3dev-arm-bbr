@@ -1,0 +1,3 @@
+[submodule "ev3dev-c"]
+	path = ev3dev-c
+	url = https://github.com/tcwan/ev3dev-c
