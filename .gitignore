@@ -55,3 +55,7 @@ dkms.conf
 .cproject
 .project
 .settings/
+
+# Binaries
+Debug/
+Release/
