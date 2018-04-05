@@ -1,0 +1,222 @@
+#                  _ _     _
+#    ___ ___ ___ _| |_|___| |_
+#   |   |  _   _|   | |  _   _|
+#   |  _|_| |___ ___|_|___  |
+#   |_|                   |_|
+#   makefile (yupp, gcc)
+
+# -- name of binary file equals to the folder name
+TARGET = $(notdir $(shell pwd))
+
+# -- creating MAP file
+MAP = 0
+
+# -- platform
+ifeq ($(OS),Windows_NT)
+# WIN32
+PLATFORM = __MINGW__
+else
+# UNIX
+PLATFORM = __UNIX__
+endif
+
+TOP = ../..
+
+# -- compiler
+ifeq ($(PLATFORM),__UNIX__)
+CC = arm-linux-gnueabi-gcc
+CXX = arm-linux-gnueabi-g++
+else
+CC = gcc
+CXX = g++
+endif
+
+LINK = $(CC)
+
+# -- build on EV3 BRICK
+ifeq ($(PLATFORM),__UNIX__)
+EV3 = $(if $(shell $(CC) -dM -E - < /dev/null | grep __ARM_ARCH_4T__),1,0)
+else
+EV3 = 0
+endif
+
+# -- output subdirectory
+ifeq ($(PLATFORM),__MINGW__)
+D_PLATFORM = mingw
+else
+D_PLATFORM =
+endif
+
+
+# -- source directories
+D_C = . $(TOP)/source/
+
+D_CXX = $(D_C)
+D_ASM = $(TOP)/source
+
+# -- include directories
+D_H = $(TOP)/include $(TOP)/ev3dev-c/asm
+
+# -- binary file directory
+D_BIN = Release
+D_BIN := $(if $(D_PLATFORM), $(D_BIN)/$(D_PLATFORM), $(D_BIN))
+
+# -- object directory
+D_OBJ = $(TOP)/object
+D_OBJ := $(if $(D_PLATFORM), $(D_OBJ)/$(D_PLATFORM), $(D_OBJ))
+
+# -- LIST and MAP directories
+D_MAP = $(TOP)/object
+D_LIST = $(TOP)/object
+
+# -- source code suffix
+E_H = .h
+E_C = .c
+E_CXX = .cpp
+#E_ASM = .asm
+E_ASM = .S
+
+# -- object suffix
+E_OBJ = .o
+
+# -- binary file suffix
+ifeq ($(OS),Windows_NT)
+E_BIN = .exe
+else
+E_BIN =
+endif
+
+# -- full name of binary file
+F_BIN = $(D_BIN)/$(TARGET)$(E_BIN)
+
+# -- LIST and MAP suffixes
+E_MAP = .map
+E_LIST = .listing
+
+# -- link options
+LIBS = -lm -lev3dev-c
+
+ifeq ($(PLATFORM),__MINGW__)
+LIBS := $(LIBS) -lws2_32
+endif
+
+LFLAGS = -L $(TOP)/ev3dev-c/lib
+
+ifeq ($(MAP),1)
+LFLAGS := $(LFLAGS) -Wl,-Map,$(D_MAP)/$(TARGET)$(E_MAP)
+endif
+
+# -- compiler flags
+CFLAGS = $(addprefix -I, $(D_H)) -O2 -std=gnu99 -W -Wall -Wno-comment
+CXXFLAGS = $(addprefix -I, $(D_H)) -O2 -W -Wall -Wno-comment
+ASMFLAGS = -Wall
+
+# ---------------------------------
+#   files lists
+# ---------------------------------
+G_H = $(wildcard $(addsuffix /*$(E_H), $(D_H)))
+
+S_C = $(sort $(wildcard $(addsuffix /*$(E_C), $(D_C))))
+S_CXX = $(sort $(wildcard $(addsuffix /*$(E_CXX), $(D_CXX))))
+S_ASM = $(wildcard $(addsuffix /*$(E_ASM), $(D_ASM)))
+
+O_CXX = $(addprefix $(D_OBJ)/, $(addsuffix $(E_OBJ), $(basename $(notdir $(S_CXX)))))
+O_C = $(addprefix $(D_OBJ)/, $(addsuffix $(E_OBJ), $(basename $(notdir $(S_C)))))
+O_ASM = $(addprefix $(D_OBJ)/, $(addsuffix $(E_OBJ), $(basename $(notdir $(S_ASM)))))
+
+O = $(O_CXX) $(O_C) $(O_ASM)
+
+# ---------------------------------
+#   commands
+# ---------------------------------
+
+# -- wrap compiler arguments
+ifeq ($(OS),Windows_NT)
+# -- too long command line workaround
+define wrap
+	echo $2 > args
+	$1 @args
+	-rm args
+endef
+else
+define wrap
+	$1 $2
+endef
+endif
+
+# -- optional final tools
+define final
+endef
+
+# -- removal list
+R_BIN = $(F_BIN) $(O)
+R = $(R_BIN)
+
+ifeq ($(MAP),1)
+R := $(R) $(D_MAP)/$(TARGET)$(E_MAP)
+endif
+
+ifeq ($(OS),Windows_NT)
+#CLEAN = cmd /c "del $(subst /,\,$(R))"
+CLEAN = rm -rf $(R)
+else
+CLEAN = rm -rf $(R)
+endif
+
+CLEAN_BIN = rm -rf $(R_BIN)
+
+# -- install
+define install
+
+endef
+
+# ---------------------------------
+#   make rules
+# ---------------------------------
+
+vpath %$(E_CXX) $(D_CXX)
+vpath %$(E_C) $(D_C)
+vpath %$(E_ASM) $(D_ASM)
+
+# -- build binary file
+.PHONY: default
+
+default: $(F_BIN)
+
+$(F_BIN): $(O)
+	mkdir -p $(D_BIN)
+	$(call wrap,$(LINK),$^ -o $@ $(LIBS) $(LFLAGS))
+	$(call final,$@)
+	@echo "*** $(F_BIN) ***"
+
+
+$(S_C) $(S_CXX): $(G_H)
+
+$(O_C): $(D_OBJ)/%$(E_OBJ): %$(E_C)
+	$(call wrap,$(CC),$(CFLAGS) -c $< -o $@)
+
+$(O_CXX): $(D_OBJ)/%$(E_OBJ): %$(E_CXX)
+	$(call wrap,$(CXX),$(CXXFLAGS) -c $< -o $@)
+
+$(O_ASM): $(D_OBJ)/%$(E_OBJ): %$(E_ASM)
+	$(call wrap,$(CC),$(ASMFLAGS) -c $< -o $@)
+
+# -- remove temporary files
+.PHONY: clean
+
+clean:
+	$(CLEAN)
+
+# -- remove binary and object files
+.PHONY: clean-binary
+
+clean-binary:
+	$(CLEAN_BIN)
+
+# -- install
+.PHONY: install
+
+install:
+	$(call install)
+
+# -- EOF
