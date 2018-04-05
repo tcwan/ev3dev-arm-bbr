@@ -52,7 +52,7 @@ endif
 D_C = . $(TOP)/source/
 
 D_CXX = $(D_C)
-D_ASM = $(TOP)/source
+D_ASM = $(D_C)
 
 # -- include directories
 D_H = $(TOP)/include $(TOP)/ev3dev-c/asm
@@ -109,15 +109,15 @@ endif
 # -- compiler flags
 CFLAGS = $(addprefix -I, $(D_H)) -O2 -std=gnu99 -W -Wall -Wno-comment
 CXXFLAGS = $(addprefix -I, $(D_H)) -O2 -W -Wall -Wno-comment
-ASMFLAGS = -Wall
+ASMFLAGS = $(CFLAGS)
 
 # ---------------------------------
 #   files lists
 # ---------------------------------
 G_H = $(wildcard $(addsuffix /*$(E_H), $(D_H)))
 
-S_C = $(sort $(wildcard $(addsuffix /*$(E_C), $(D_C))))
-S_CXX = $(sort $(wildcard $(addsuffix /*$(E_CXX), $(D_CXX))))
+S_C = $(wildcard $(addsuffix /*$(E_C), $(D_C)))
+S_CXX = $(wildcard $(addsuffix /*$(E_CXX), $(D_CXX)))
 S_ASM = $(wildcard $(addsuffix /*$(E_ASM), $(D_ASM)))
 
 O_CXX = $(addprefix $(D_OBJ)/, $(addsuffix $(E_OBJ), $(basename $(notdir $(S_CXX)))))
@@ -190,7 +190,7 @@ $(F_BIN): $(O)
 	@echo "*** $(F_BIN) ***"
 
 
-$(S_C) $(S_CXX): $(G_H)
+$(S_C) $(S_CXX) $(S_ASM): $(G_H)
 
 $(O_C): $(D_OBJ)/%$(E_OBJ): %$(E_C)
 	$(call wrap,$(CC),$(CFLAGS) -c $< -o $@)
