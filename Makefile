@@ -17,7 +17,7 @@ clean-headers::
 	make -C ev3dev-c/asm clean
 
 $(LIBS)::
-	make -C ev3dev-c/source/ev3  SKIP_PP=0	
+	make -C ev3dev-c/source/ev3 SKIP_PP=0	
 	make -C ev3dev-c/source/ev3 SKIP_PP=0 shared
 	
 $(ASM_HEADERS)::
