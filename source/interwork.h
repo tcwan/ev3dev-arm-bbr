@@ -9,8 +9,7 @@
  * Redistribution of this file is permitted under the terms of the MIT License.
  */
 
-#ifndef __INTERWORK_H__
-#define __INTERWORK_H__
+#pragma once
 
 #ifdef __ASSEMBLY__
 /** Macro to call Interworked ARM Routine Directly
@@ -92,4 +91,3 @@
 
 
 #endif
-#endif  /* __INTERWORK_H__ */
