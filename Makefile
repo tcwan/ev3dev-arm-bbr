@@ -16,11 +16,11 @@ clean-libs::
 clean-headers::
 	make -C ev3dev-c/asm clean
 
-$(LIBS)::
+libs::
 	make -C ev3dev-c/source/ev3 SKIP_PP=0	
 	make -C ev3dev-c/source/ev3 SKIP_PP=0 shared
 	
-$(ASM_HEADERS)::
+asm-headers::
 	make -C ev3dev-c/asm
 
 all:: $(LIBS) $(ASM_HEADERS)
@@ -28,4 +28,6 @@ all:: $(LIBS) $(ASM_HEADERS)
 	do \
 	make -C $${i}; \
 	done
-	
+
+source/*::
+	make -C $@;
