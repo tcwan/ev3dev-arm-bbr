@@ -102,13 +102,13 @@ E_MAP = .map
 E_LIST = .listing
 
 # -- link options
-LIBS = -lm -lev3dev-c
+LIBS = -lm -lev3dev-c -lev3dev-arm-bbr
 
 ifeq ($(PLATFORM),__MINGW__)
 LIBS := $(LIBS) -lws2_32
 endif
 
-LFLAGS = -L $(TOP)/ev3dev-c/lib
+LFLAGS = -L $(TOP)/ev3dev-c/lib -L $(TOP)/common/lib
 
 ifeq ($(MAP),1)
 LFLAGS := $(LFLAGS) -Wl,-Map,$(D_MAP)/$(TARGET)$(E_MAP)

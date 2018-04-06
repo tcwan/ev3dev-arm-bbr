@@ -26,15 +26,22 @@ clean-headers::
 
 ev3dev-c-libs::
 	make -C ev3dev-c/source/ev3 SKIP_PP=0	
+
+ev3dev-c-shared-libs::
 	make -C ev3dev-c/source/ev3 SKIP_PP=0 shared
 
 arm-bbr-libs::
 	make -C common
 
-libs:: ev3dev-c-libs arm-bbr-libs
+arm-bbr-shared-libs::
+	make -C common shared
 
 asm-headers::
 	make -C ev3dev-c/asm
+
+libs:: ev3dev-c-libs arm-bbr-libs
+
+shared-libs:: ev3dev-c-shared-libs arm-bbr-shared-libs
 
 all:: $(EVDEVCLIBS) $(ASM_HEADERS)
 	@echo "Making ..." ${DIRS}
