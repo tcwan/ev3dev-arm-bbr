@@ -59,7 +59,7 @@ D_CXX = $(D_C)
 D_ASM = $(D_C)
 
 # -- include directories
-D_H = $(TOP)/common/include
+D_H = $(TOP)/common/include $(TOP)/include
 
 # -- library directory
 D_BIN = $(TOP)/common/lib
@@ -253,7 +253,6 @@ $(D_BIN):
 .PHONY: clean
 
 clean:
-	@echo "In " $(PWD)
 	$(CLEAN)
 
 # ---- remove binary and object files

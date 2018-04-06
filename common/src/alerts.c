@@ -11,6 +11,8 @@
  */
 
 #include <stdlib.h>
+#include "ev3dev-arm-ctypes.h"
+#include "alerts.h"
 
 // Use the beep command to do the work for us
 // TODO: Access the Speaker device via programming interfaces

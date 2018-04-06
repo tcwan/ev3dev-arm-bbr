@@ -13,18 +13,26 @@ clean::
 	make -f Makefile.proj -C $${i} clean; \
 	done
 
-clean-libs::
-#	make -C ev3dev-c/source/ev3 clean
+clean-ev3dev-c-libs::
+	make -C ev3dev-c/source/ev3 clean
+
+clean-arm-bbr-libs::
 	make -C common clean
-	
+
+clean-libs:: clean-ev3dev-c-libs clean-arm-bbr-libs
+
 clean-headers::
 	make -C ev3dev-c/asm clean
 
-libs::
-#	make -C ev3dev-c/source/ev3 SKIP_PP=0	
-#	make -C ev3dev-c/source/ev3 SKIP_PP=0 shared
+ev3dev-c-libs::
+	make -C ev3dev-c/source/ev3 SKIP_PP=0	
+	make -C ev3dev-c/source/ev3 SKIP_PP=0 shared
+
+arm-bbr-libs::
 	make -C common
-	
+
+libs:: ev3dev-c-libs arm-bbr-libs
+
 asm-headers::
 	make -C ev3dev-c/asm
 

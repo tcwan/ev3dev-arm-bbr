@@ -11,19 +11,21 @@
  */
 
 #include "ev3dev-arm-ctypes.h"
+#include "alerts.h"
+#include "scaffolding.h"
 
 static bool audible = TRUE;
 
 
 /* Internal Routines */
-con_set_curpos(int col, int row)
+bool term_set_curpos(int col, int row)
 {
-
+	return TRUE;
 }
 
-con_disp_string(char *string)
+bool term_disp_string(char *string)
 {
-
+	return TRUE;
 }
 
 /* Public Routines */
@@ -62,6 +64,6 @@ void prog_content2(char *string)
 void prog_contentX(char *string, int row)
 {
 	/* Display Content string on LCD Screen on Row X */
-	con_set_curpos(0, row);
-	con_disp_string(string);
+	term_set_curpos(0, row);
+	term_disp_string(string);
 }
