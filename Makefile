@@ -1,13 +1,16 @@
 #Top level makefile
 
 DIRS=source/*/ 
-LIBS=ev3dev-c/lib/libev3dev-c.a ev3dev-c/lib/libev3dev-c.so
-ASM_HEADERS=ev3dev-c/asm/*.h
+
+EVDEVC = ./ev3dev-c
+EVDEVCLIBS = $(EVDEVC)/lib/libev3dev-c.a $(EVDEVC)/lib/libev3dev-c.so
+ASM_HEADERS = $(EVDEVC)/asm/*.h
 
 clean::
+	@echo "Cleaning ..." ${DIRS}
 	@for i in ${DIRS}; \
 	do \
-	make -C $${i} clean; \
+	make -f Makefile.proj -C $${i} clean; \
 	done
 
 clean-libs::
@@ -23,11 +26,15 @@ libs::
 asm-headers::
 	make -C ev3dev-c/asm
 
-all:: $(LIBS) $(ASM_HEADERS)
+all:: $(EVDEVCLIBS) $(ASM_HEADERS)
+	@echo "Making ..." ${DIRS}
 	@for i in ${DIRS}; \
 	do \
-	make -C $${i}; \
+	make -f Makefile.proj -C $${i}; \
 	done
 
 source/*::
-	make -C $@;
+	make -f Makefile.proj -C $@;
+	
+source/*/*::
+	make -f Makefile.subproject -C $@;

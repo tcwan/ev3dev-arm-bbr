@@ -1,0 +1,29 @@
+# Define TOP for projects under source/
+TOP = ../..
+
+MAKEFILE_BASE = ../Makefile
+
+.PHONY: default clean clean-binary debug debug-clean debug-clean-binary release release-clean
+
+default: debug
+
+clean: debug-clean-binary
+
+clean-binary: debug-clean-binary
+
+clean-all: debug-clean
+
+debug:
+	$(MAKE) -f $(MAKEFILE_BASE).Debug PROJTOP=$(TOP)
+
+debug-clean:
+	$(MAKE) -f $(MAKEFILE_BASE).Debug clean PROJTOP=$(TOP)
+
+debug-clean-binary:
+	$(MAKE) -f $(MAKEFILE_BASE).Debug clean-binary PROJTOP=$(TOP)
+
+release:
+	$(MAKE) -f $(MAKEFILE_BASE).Release PROJTOP=$(TOP)
+
+release-clean:
+	$(MAKE) -f $(MAKEFILE_BASE).Release clean PROJTOP=$(TOP)

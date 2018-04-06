@@ -1,0 +1,25 @@
+#Makefile for projects under source/ with multiple subprojects
+
+MAKEFILE_BASE = ../Makefile
+
+DIRS = ./*/ 
+
+default: all
+
+clean::
+	@echo "Cleaning ..." ${DIRS}
+	@for i in ${DIRS}; \
+	do \
+	make -f Makefile.subproject -C $${i} clean; \
+	done
+
+all::
+	@echo "Making ..." ${DIRS}
+	@for i in ${DIRS}; \
+	do \
+	make -f Makefile.subproject -C $${i}; \
+	done
+	
+./*::
+	make -f Makefile.subproject -C $@ ;
+

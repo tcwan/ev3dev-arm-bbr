@@ -20,7 +20,12 @@ else
 PLATFORM = __UNIX__
 endif
 
-TOP = ../..
+# Must override PROJTOP in project Makefile
+ifeq ($(strip $(PROJTOP)),)
+TOP = ..
+else
+TOP = $(PROJTOP)
+endif
 
 # -- compiler
 ifeq ($(PLATFORM),__UNIX__)

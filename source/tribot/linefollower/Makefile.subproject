@@ -1,0 +1,33 @@
+# Define TOP for subprojects under source/<top_project>/
+TOP = ../../..
+
+EVDEVC = $(TOP)/ev3dev-c
+EVDEVCLIBS = $(EVDEVC)/lib/libev3dev-c.a $(EVDEVC)/lib/libev3dev-c.so
+ASM_HEADERS = $(EVDEVC)/asm/*.h
+
+MAKEFILE_BASE = ../../Makefile
+
+.PHONY: default clean clean-binary debug debug-clean debug-clean-binary release release-clean
+
+default: debug
+
+clean: debug-clean-binary
+
+clean-binary: debug-clean-binary
+
+clean-all: debug-clean
+
+debug:  $(EVDEVCLIBS) $(ASM_HEADERS)
+	$(MAKE) -f $(MAKEFILE_BASE).Debug PROJTOP=$(TOP)
+
+debug-clean:
+	$(MAKE) -f $(MAKEFILE_BASE).Debug clean PROJTOP=$(TOP)
+
+debug-clean-binary:
+	$(MAKE) -f $(MAKEFILE_BASE).Debug clean-binary PROJTOP=$(TOP)
+
+release:  $(LIBS) $(ASM_HEADERS)
+	$(MAKE) -f $(MAKEFILE_BASE).Release PROJTOP=$(TOP)
+
+release-clean:
+	$(MAKE) -f $(MAKEFILE_BASE).Release clean PROJTOP=$(TOP)
