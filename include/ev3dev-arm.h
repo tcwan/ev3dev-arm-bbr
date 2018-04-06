@@ -1,12 +1,13 @@
-/** @file ev3dev-arm.h
- *  @brief Define macros to support ASM function prototypes
- *
- * Copyright (c) 2007,2009, 2018
- * Thanks to Bartli (forum post @ embdev.net ARM programming with GCC/GNU tools forum)
- *
- * See AUTHORS for a full list of the developers.
- *
- * Redistribution of this file is permitted under the terms of the MIT License.
+/*
+     ____ __     ____   ___    ____ __         (((((()
+    | |_  \ \  /   ) ) | |  ) | |_  \ \  /  \(@)- /
+    |_|__  \_\/  __)_) |_|_/  |_|__  \_\/   /(@)- \
+                                               ((())))
+ *//**
+ *  \file   ev3dev-arm.h
+ *  \brief  ARM-BBR macros to support ASM function prototypes
+ *  \author  See AUTHORS for a full list of the developers
+ *  \copyright  See the LICENSE file.
  */
 
 #pragma once

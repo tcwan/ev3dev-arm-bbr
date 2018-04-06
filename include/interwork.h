@@ -1,13 +1,15 @@
-/** @file interwork.h
- *  @brief Interworking Macros for Assembly Language Routines.
+/*
+     ____ __     ____   ___    ____ __         (((((()
+    | |_  \ \  /   ) ) | |  ) | |_  \ \  /  \(@)- /
+    |_|__  \_\/  __)_) |_|_/  |_|__  \_\/   /(@)- \
+                                               ((())))
+ *//**
+ *  \file   interwork.h
+ *  \brief  ARM-BBR Interworking macros for Assembly Language Routines
+ *  \author  See AUTHORS for a full list of the developers
+ *  \copyright  See the LICENSE file.
  */
 
-/* Copyright (c) 2011, 2018
- *
- * See AUTHORS for a full list of the developers.
- *
- * Redistribution of this file is permitted under the terms of the MIT License.
- */
 
 #pragma once
 

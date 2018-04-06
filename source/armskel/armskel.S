@@ -1,4 +1,22 @@
+/*
+     ____ __     ____   ___    ____ __         (((((()
+    | |_  \ \  /   ) ) | |  ) | |_  \ \  /  \(@)- /
+    |_|__  \_\/  __)_) |_|_/  |_|__  \_\/   /(@)- \
+                                               ((())))
+ *//**
+ *  \file  armskel.S
+ *  \brief  ev3dev-arm-bbr skeleton application.
+ *  \author  Tat-Chee Wan (tcwan@usm.my)
+ *  \copyright  See the LICENSE file.
+ */
+
+#define __ASSEMBLY__
+
+#include "ev3dev-arm.h"
+#include "ev3.h"
+
 	.data
+
 printstr:	.asciz "Hello, ARM World!\n"
 
 	.code 32
@@ -9,6 +27,6 @@ printstr:	.asciz "Hello, ARM World!\n"
 main:
 	push		{lr}
 	ldr		r0, =printstr
-	b		printf
+	bl		printf
 	pop		{pc}
 
