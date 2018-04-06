@@ -10,6 +10,13 @@
  *  \copyright  See the LICENSE file.
  */
 
+#pragma once
+
+#include "ev3dev-arm-ctypes.h"
+
+/** @addtogroup common */
+/*@{*/
+
 /**
  * Common Startup/Shutdown Routines for ARM-BBR programs
  */
@@ -49,3 +56,5 @@ void prog_content2(char *string);     /* Display Content string on LCD Screen */
  */
 void prog_contentX(char *string, int row);     /* Display Content string on LCD Screen */
 
+/*@}*/
+/*@}*/
