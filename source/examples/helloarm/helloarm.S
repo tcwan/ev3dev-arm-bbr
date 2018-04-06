@@ -9,6 +9,6 @@ printstr:	.asciz "Hello, ARM World!\n"
 main:
 	push		{lr}
 	ldr		r0, =printstr
-	b		printf
+	bl		printf
 	pop		{pc}
 
