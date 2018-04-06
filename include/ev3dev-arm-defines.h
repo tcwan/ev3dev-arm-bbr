@@ -4,8 +4,8 @@
     |_|__  \_\/  __)_) |_|_/  |_|__  \_\/   /(@)- \
                                                ((())))
  *//**
- *  \file   ev3dev-arm.h
- *  \brief  ARM-BBR macros to support ASM function prototypes
+ *  \file   ev3dev-arm-defines.h
+ *  \brief  ARM-BBR defines and macros to support ASM function prototypes
  *  \author  See AUTHORS for a full list of the developers
  *  \copyright  See the LICENSE file.
  */

@@ -12,7 +12,7 @@
 
 #define __ASSEMBLY__
 
-#include "ev3dev-arm.h"
+#include "ev3dev-arm-bbr.h"
 #include "ev3.h"
 
 	.data
@@ -26,7 +26,9 @@ printstr:	.asciz "Hello, ARM World!\n"
 
 main:
 	push		{lr}
+	bl		prog_init
 	ldr		r0, =printstr
 	bl		printf
+	bl		prog_shutdown
 	pop		{pc}
 

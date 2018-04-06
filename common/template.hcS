@@ -10,4 +10,8 @@
  *  \copyright  See the LICENSE file.
  */
 
+// Header files
 //#pragma once
+
+// Assembly source files
+//#define __ASSEMBLY__

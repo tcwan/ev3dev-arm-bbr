@@ -14,14 +14,16 @@ clean::
 	done
 
 clean-libs::
-	make -C ev3dev-c/source/ev3 clean
+#	make -C ev3dev-c/source/ev3 clean
+	make -C common clean
 	
 clean-headers::
 	make -C ev3dev-c/asm clean
 
 libs::
-	make -C ev3dev-c/source/ev3 SKIP_PP=0	
-	make -C ev3dev-c/source/ev3 SKIP_PP=0 shared
+#	make -C ev3dev-c/source/ev3 SKIP_PP=0	
+#	make -C ev3dev-c/source/ev3 SKIP_PP=0 shared
+	make -C common
 	
 asm-headers::
 	make -C ev3dev-c/asm

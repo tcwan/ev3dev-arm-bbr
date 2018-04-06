@@ -10,21 +10,23 @@
  *  \copyright  See the LICENSE file.
  */
 
+#include <stdlib.h>
+
+// Use the beep command to do the work for us
+// TODO: Access the Speaker device via programming interfaces
+
+#define HELLO_CMDSTR "beep -f 1000 -l 100 -D 50 -n -f 2000 -l 100 -D 100"
+#define GOODBYE_CMDSTR "beep -f 2000 -l 100 -D 50 -n -f 1000 -l 100 -D 100"
+
 void alrt_hello(bool audible) {
   if (!audible)
     return;
-  nx_sound_freq(1000, 100);
-  nx_systick_wait_ms(50);
-  nx_sound_freq(2000, 100);
-  nx_systick_wait_ms(900);
+  system(HELLO_CMDSTR);
 }
 
 void alrt_goodbye(bool audible) {
   if (!audible)
     return;
-  nx_sound_freq(2000, 100);
-  nx_systick_wait_ms(50);
-  nx_sound_freq(1000, 100);
-  nx_systick_wait_ms(900);
+  system(GOODBYE_CMDSTR);
 }
 

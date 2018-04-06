@@ -5,10 +5,13 @@
                                                ((())))
  *//**
  *  \file  helloarm.S
- *  \brief  ev3dev-arm-bbr Hello World example.
+ *  \brief  Standard C-Library Hello World example.
  *  \author  Tat-Chee Wan (tcwan@usm.my)
  *  \copyright  See the LICENSE file.
  */
+
+// STDIO-only example program
+
 
 	.data
 	.align

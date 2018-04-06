@@ -10,6 +10,11 @@
  *  \copyright  See the LICENSE file.
  */
 
+#include "ev3dev-arm-ctypes.h"
+
+static bool audible = TRUE;
+
+
 /* Internal Routines */
 con_set_curpos(int col, int row)
 {
@@ -26,12 +31,14 @@ con_disp_string(char *string)
 void prog_init(void)
 {
 	/* Program Initialization Routine */
+	alrt_hello(audible);
 }
 
 
 void prog_shutdown(void)
 {
 	/* Program Shutdown Routine */
+	alrt_goodbye(audible);
 }
 
 void prog_title(char *string)
