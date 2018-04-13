@@ -15,11 +15,13 @@
 #include "ev3dev-arm-bbr.h"
 #include "ev3.h"
 
-	.equiv	SLEEP_DURATION, 5
+	.equiv	SLEEP_DURATION, 3
 
 	.data
 
-printstr:	.asciz "Hello, ARM World!\n"
+titlestr:	.asciz "Armskel Program"
+promptstr:	.asciz "Welcome to EV3DEV-ARM-BBR"
+contentstr:	.asciz "Hello ARM!"
 
 	.code 32
 	.text
@@ -29,10 +31,25 @@ printstr:	.asciz "Hello, ARM World!\n"
 main:
 	push		{lr}
 	bl		prog_init
-	ldr		r0, =printstr
-	bl		printf
+
+	ldr		r0, =titlestr
+	bl		prog_title
+
 	mov		r0, #SLEEP_DURATION
 	bl		sleep
+
+	ldr		r0, =promptstr
+	bl		prog_content1
+
+	mov		r0, #SLEEP_DURATION
+	bl		sleep
+
+	ldr		r0, =contentstr
+	bl		prog_content2
+
+	mov		r0, #SLEEP_DURATION
+	bl		sleep
+
 	bl		prog_shutdown
 	pop		{pc}
 
