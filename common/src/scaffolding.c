@@ -13,8 +13,14 @@
 #include "ev3dev-arm-ctypes.h"
 #include "alerts.h"
 #include "scaffolding.h"
+#include "stdlib.h"
 
 static bool audible = TRUE;
+
+// In ev3dev-jessie, the console font will revert to the system setting on exit
+#undef RESTORE_SETFONT
+#define ARM_BBR_TERMFONT "Lat15-Terminus12x6.psf.gz"
+#define SYSTEM_TERMFONT "Lat15-TomThumb4x6.psf.gz"
 
 
 /* Internal Routines */
@@ -33,6 +39,7 @@ bool term_disp_string(char *string)
 void prog_init(void)
 {
 	/* Program Initialization Routine */
+	system("setfont " ARM_BBR_TERMFONT);		// Use legible font for status messages
 	alrt_hello(audible);
 }
 
@@ -40,7 +47,11 @@ void prog_init(void)
 void prog_shutdown(void)
 {
 	/* Program Shutdown Routine */
+#ifdef RESTORE_SETFONT
+	system("setfont " SYSTEM_TERMFONT);		// Use legible font for status messages
+#endif
 	alrt_goodbye(audible);
+
 }
 
 void prog_title(char *string)

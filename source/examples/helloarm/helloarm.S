@@ -12,6 +12,7 @@
 
 // STDIO-only example program
 
+	.equiv	SLEEP_DURATION, 5
 
 	.data
 	.align
@@ -27,6 +28,8 @@ main:
 	push		{lr}
 	ldr		r0, =printstr
 	bl		printf
+	mov		r0, #SLEEP_DURATION
+	bl		sleep
 	pop		{pc}
 
 	.end
