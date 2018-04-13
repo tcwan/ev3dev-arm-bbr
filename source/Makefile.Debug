@@ -102,7 +102,8 @@ E_MAP = .map
 E_LIST = .listing
 
 # -- link options
-LIBS = -lm -lev3dev-c -lev3dev-arm-bbr
+# Force static linking for custom libraries
+LIBS = -lm -l:libev3dev-c.a -l:libev3dev-arm-bbr.a
 
 ifeq ($(PLATFORM),__MINGW__)
 LIBS := $(LIBS) -lws2_32
