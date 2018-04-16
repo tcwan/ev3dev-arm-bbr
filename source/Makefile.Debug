@@ -65,6 +65,9 @@ D_ASM = $(D_C)
 # -- include directories
 D_H = $(TOP)/include $(TOP)/ev3dev-c/asm
 
+# -- library directories
+D_L = $(TOP)/common/lib $(TOP)/ev3dev-c/lib
+
 # -- binary file directory
 D_BIN = Debug
 D_BIN := $(if $(D_PLATFORM), $(D_BIN)/$(D_PLATFORM), $(D_BIN))
@@ -76,6 +79,9 @@ D_OBJ := $(if $(D_PLATFORM), $(D_OBJ)/$(D_PLATFORM), $(D_OBJ))
 # -- LIST and MAP directories
 D_MAP = $(TOP)/object
 D_LIST = $(TOP)/object
+
+# -- library suffix
+E_L = .a
 
 # -- source code suffix
 E_H = .h
@@ -124,6 +130,7 @@ ASMFLAGS = $(CFLAGS)
 #   files lists
 # ---------------------------------
 G_H = $(wildcard $(addsuffix /*$(E_H), $(D_H)))
+G_L = $(wildcard $(addsuffix /*$(E_L), $(D_L)))
 
 S_C = $(wildcard $(addsuffix /*$(E_C), $(D_C)))
 S_CXX = $(wildcard $(addsuffix /*$(E_CXX), $(D_CXX)))
@@ -192,7 +199,7 @@ vpath %$(E_ASM) $(D_ASM)
 
 default: $(F_BIN)
 
-$(F_BIN): $(O)
+$(F_BIN): $(O) $(G_L)
 	$(call wrap,$(LINK),$^ -o $@ $(LIBS) $(LFLAGS))
 	$(call final,$@)
 	@echo "*** $(F_BIN) ***"
