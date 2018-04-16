@@ -71,5 +71,39 @@ void prog_content2(char *string);     /* Display Content string on LCD Screen */
  */
 void prog_contentX(char *string, int row);     /* Display Content string on LCD Screen */
 
+/**
+ * Display signed integer on LCD at current cursor position
+ * The negative sign is displayed if it is negative,
+ * otherwise no signed is displayed.
+ *    @param value: integer value
+ */
+void prog_display_integer(S32 value);
+
+/**
+ * Display signed integer on LCD at current cursor position
+ * The sign is always displayed, regardless of the value
+ * being positive or negative.
+ *    @param value: integer value
+ */
+void prog_display_signed_int(S32 value);
+
+/**
+ * Display unsigned integer on LCD at current cursor position
+ *    @param value: unsigned integer value
+ */
+void prog_display_unsigned_int(U32 value);
+
+/**
+ * Display 8-bit binary on LCD at current cursor position
+ *    @param value: binary value
+ */
+void prog_display_bin8(U8 binvalue);
+
+/**
+ * Display 32-bit hexadecimal on LCD at current cursor position
+ *    @param value: hexadecimal value
+ */
+void prog_display_hex32(U32 hexvalue);
+
 /*@}*/
 /*@}*/

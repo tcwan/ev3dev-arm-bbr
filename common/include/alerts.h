@@ -43,6 +43,15 @@ void alrt_hello(bool audible);
  */
 void alrt_goodbye(bool audible);
 
+/** Generate tone
+ *
+ * @param frequency: Tone frequency in Hz
+ * @param duration: Duration in ms
+ * @return None
+ * The tone with specified frequency and duration will be generated
+ */
+void alrt_tone(U32 frequency, U32 duration);
+
 /*@}*/
 /*@}*/
 
