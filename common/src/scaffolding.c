@@ -228,6 +228,17 @@ void prog_contentX(char *string, int row)
 	term_disp_string(string);
 }
 
+void prog_set_cursorpos(int col, int row) {
+	term_set_curpos(col, row);
+}
+
+void prog_display_string(char *string)
+{
+	//printf("Debug: prog_display_string()\n");
+	/* Display string on LCD Screen at current cursor position */
+	term_disp_string(string);
+}
+
 void prog_display_integer(S32 value)
 {
 	//printf("Debug: prog_display_integer()\n");
