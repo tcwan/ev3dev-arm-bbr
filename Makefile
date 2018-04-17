@@ -55,3 +55,6 @@ source/*::
 	
 source/*/*::
 	make -f Makefile.subproject -C $@;
+
+docs::
+	cd doc; doxygen
