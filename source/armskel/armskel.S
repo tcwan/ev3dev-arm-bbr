@@ -77,6 +77,6 @@ done:
 	bl		prog_content2
 
 
-	bl		prog_shutdown
+	bl		prog_exit
 	pop		{pc}
 

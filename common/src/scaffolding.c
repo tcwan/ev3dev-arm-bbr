@@ -47,7 +47,7 @@ static bool audible = TRUE;
 static bool is_FBConsole;
 
 // 4-bit Binary LUT
-const char bit_rep[16][5] = {
+static const char bit_rep[16][5] = {
     [ 0] = "0000", [ 1] = "0001", [ 2] = "0010", [ 3] = "0011",
     [ 4] = "0100", [ 5] = "0101", [ 6] = "0110", [ 7] = "0111",
     [ 8] = "1000", [ 9] = "1001", [10] = "1010", [11] = "1011",
@@ -65,34 +65,34 @@ typedef enum {
 //
 // TODO: Replace <stdio.h> routines with something more efficient
 //
-bool term_clearscr(void)
+static inline bool term_clearscr(void)
 {
 	if (is_FBConsole) {
-		printf(TERM_CLRSCR);
+		fputs(TERM_CLRSCR, stdout);
 		fflush(stdout);
 	}
 	return is_FBConsole;
 }
 
-bool term_hidecursor(void)
+static inline bool term_hidecursor(void)
 {
 	if (is_FBConsole) {
-		printf(TERM_HIDECURSOR);
+		fputs(TERM_HIDECURSOR, stdout);
 		fflush(stdout);
 	}
 	return is_FBConsole;
 }
 
-bool term_showcursor(void)
+static inline bool term_showcursor(void)
 {
 	if (is_FBConsole) {
-		printf(TERM_SHOWCURSOR);
+		fputs(TERM_SHOWCURSOR, stdout);
 		fflush(stdout);
 	}
 	return is_FBConsole;
 }
 
-bool term_set_curpos(int col, int row)
+static bool term_set_curpos(int col, int row)
 {
 	char curpos_sequence[] = TERM_CURPOS_FMT;
 
@@ -108,26 +108,26 @@ bool term_set_curpos(int col, int row)
 		curpos_sequence[COL_FMT_POS]   = '0' + col / 10;
 		curpos_sequence[COL_FMT_POS+1] = '0' + col % 10;
 
-    		printf(curpos_sequence);
+    		fputs(curpos_sequence, stdout);
     		fflush(stdout);
 	}
     	return is_FBConsole;
 }
 
-bool term_disp_string(char *string)
+static inline bool term_disp_string(char *string)
 {
-	printf(string);
+	fputs(string, stdout);
 	if (!is_FBConsole)
-		printf("\n");
+		fputs("\n", stdout);
 	fflush(stdout);
 	return TRUE;
 }
 
-void print_bin(U8 value) {
-	printf("%s%s", bit_rep[(value & 0xF0) >> 4], bit_rep[value & 0x0F]);
+static void print_bin(U8 value) {
+	printf("0b%s%s", bit_rep[(value & 0xF0) >> 4], bit_rep[value & 0x0F]);
 }
 
-bool term_disp_value(U32 value, VALTYPE type)
+static bool term_disp_value(U32 value, VALTYPE type)
 {
 	switch(type) {
 
@@ -154,7 +154,7 @@ bool term_disp_value(U32 value, VALTYPE type)
 	}
 
 	if (!is_FBConsole)
-		printf("\n");
+		fputs("\n",stdout);
 	fflush(stdout);
 	return TRUE;
 }
@@ -184,14 +184,9 @@ void prog_init(void)
 	term_clearscr();
 }
 
-void prog_clearscreen(void)
+void prog_exit(void)
 {
-	term_clearscr();
-}
-
-void prog_shutdown(void)
-{
-	/* Program Shutdown Routine */
+	/* Program Exit Routine */
 #ifdef RESTORE_SETFONT
 	system("setfont " SYSTEM_TERMFONT);		// Use legible font for status messages
 #endif
@@ -228,8 +223,13 @@ void prog_contentX(char *string, int row)
 	term_disp_string(string);
 }
 
-void prog_set_cursorpos(int col, int row) {
-	term_set_curpos(col, row);
+void prog_clearscreen(void)
+{
+	term_clearscr();
+}
+
+bool prog_set_cursorpos(int col, int row) {
+	return term_set_curpos(col, row);
 }
 
 void prog_display_string(char *string)
