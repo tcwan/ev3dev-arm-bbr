@@ -196,7 +196,7 @@ vpath %$(E_ASM) $(D_ASM)
 # -- build binary file
 .PHONY: default
 
-default: $(F_BIN)
+default: bindirs $(F_BIN)
 
 $(F_BIN): $(O) $(G_L)
 	$(call wrap,$(LINK),$^ -o $@ $(LIBS) $(LFLAGS))
