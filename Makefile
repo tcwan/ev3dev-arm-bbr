@@ -3,9 +3,27 @@
 DIRS=source/*/ 
 
 EVDEVC = ./ev3dev-c
+ARMBBR = ./common
 EVDEVCLIBS = $(EVDEVC)/lib/libev3dev-c.a $(EVDEVC)/lib/libev3dev-c.so
+ARMBBRLIBS = $(ARMBBR)/lib/libev3dev-arm-bbr.a $(ARMBBR)/lib/libev3dev-arm-bbr.so
 ASM_HEADERS = $(EVDEVC)/asm/*.h
 
+# Actual builds
+
+$(EVDEVC)/lib/libev3dev-c.a:
+	make -C ev3dev-c/source/ev3 SKIP_PP=0	
+
+$(EVDEVC)/lib/libev3dev-c.so:
+	make -C ev3dev-c/source/ev3 SKIP_PP=0 shared
+
+$(ARMBBR)/lib/libev3dev-arm-bbr.a:
+	make -C common
+
+$(ARMBBR)/lib/libev3dev-arm-bbr.so:
+	make -C common shared
+
+
+# meta builds
 clean::
 	@echo "Cleaning ..." ${DIRS}
 	@for i in ${DIRS}; \
@@ -24,17 +42,13 @@ clean-libs:: clean-ev3dev-c-libs clean-arm-bbr-libs
 clean-headers::
 	make -C ev3dev-c/asm clean
 
-ev3dev-c-libs::
-	make -C ev3dev-c/source/ev3 SKIP_PP=0	
+ev3dev-c-libs:: $(EVDEVC)/lib/libev3dev-c.a
 
-ev3dev-c-shared-libs::
-	make -C ev3dev-c/source/ev3 SKIP_PP=0 shared
+ev3dev-c-shared-libs:: $(EVDEVC)/lib/libev3dev-c.so
 
-arm-bbr-libs::
-	make -C common
+arm-bbr-libs:: $(ARMBBR)/lib/libev3dev-arm-bbr.a
 
-arm-bbr-shared-libs::
-	make -C common shared
+arm-bbr-shared-libs:: $(ARMBBR)/lib/libev3dev-arm-bbr.so
 
 asm-headers::
 	make -C ev3dev-c/asm
@@ -43,7 +57,7 @@ libs:: ev3dev-c-libs arm-bbr-libs
 
 shared-libs:: ev3dev-c-shared-libs arm-bbr-shared-libs
 
-all:: $(EVDEVCLIBS) $(ASM_HEADERS)
+all:: $(EVDEVCLIBS) $(ARMBBRLIBS) $(ASM_HEADERS)
 	@echo "Making ..." ${DIRS}
 	@for i in ${DIRS}; \
 	do \
