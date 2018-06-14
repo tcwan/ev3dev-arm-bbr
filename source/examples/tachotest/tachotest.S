@@ -15,15 +15,18 @@
 #include "ev3_tacho.h"
 #include "ev3dev-arm-bbr.h"
 
+#undef  BRUTE_FORCE_TIMING
+
 #define TACHO_MOTOR_TYPE 	LEGO_EV3_L_MOTOR		// Change to LEGO_EV3_M_MOTOR for Medium Servo Motor
-#define TACHO_MAX_SPEED 	25						// Be careful not to set too large a number
-#define TACHO_RAMPTIME_MS	500					// 500 ms to ramp up/down to speed
-#define TACHO_STOP_MODE		TACHO_HOLD				// TACHO_COAST, TACHO_BRAKE, TACHO_HOLD
+#define TACHO_MAX_SPEED 	200						// Be careful not to set too large a number
+#define TACHO_RAMPTIME_MS	100						// 100 ms to ramp up/down to speed
+#define TACHO_STOP_MODE		TACHO_BRAKE				// TACHO_COAST, TACHO_BRAKE, TACHO_HOLD
 
 	.equiv  MS_TO_US_MULTIPLIER, 1000
 	.equiv	SLEEP_DURATION_100MS, 100 * MS_TO_US_MULTIPLIER
 	.equiv  SLEEP_DURATION_500MS, 500 * MS_TO_US_MULTIPLIER
 	.equiv  SLEEP_DURATION_1SEC, 1000 * MS_TO_US_MULTIPLIER
+	.equiv  SLEEP_DURATION_2SEC, 2000 * MS_TO_US_MULTIPLIER
 	.equiv	NUM_LOOPS, 10
 
 	.extern usleep        /* C Library usleep() */
@@ -31,18 +34,27 @@
 	.data
 	.align
 
+// Note: .asciz doesn't always null terminate the string??
 printstr:		.asciz "Tacho Motor (LEGO Large Servo Motor) Test\n"
 waittachostr:	.asciz "Waiting for Tacho Motor...\n"
-foundtachostr:	.asciz "Found Tacho Motor at index: "
-loopstr:		.asciz "Remaining loops: "
+foundtachostr:	.asciz "Found Tacho Motor at index: \0"
+loopstr:		.asciz "Remaining loops: \0"
 
 countperrot:	.word	0					// Tacho count per rotation (360 deg)
+prevposition:	.word	0					// Previous position of the tacho motor
+currposition:	.word	0					// Current position of the tacho motor
 seqno:			.byte	0					// Sequence number for motor type
 
 
 	.code 32
 	.text
 	.align
+
+wait_500ms:
+	push	{lr}
+	ldr		r0, =SLEEP_DURATION_500MS
+	bl		usleep
+	pop		{pc}
 
 init_tacho:
 	push	{lr}
@@ -58,18 +70,38 @@ find_motor:
 	mov		r2, #0
 	bl		ev3_search_tacho				// Search for TACHO_MOTOR_TYPE starting from motor0, return found flag
 	cmp		r0, #FALSE
-	beq		find_motor						// Motor not found
+	bne		found_motor						// Motor not found
+	bl		wait_500ms
+	b		find_motor						// Delay 500 ms, try again
 found_motor:
 	pop		{pc}
 
+stop_tacho:
+	push	{lr}
+	ldr		r0, =seqno
+	ldrb	r0, [r0]						// setup motor sequence number
+	mov		r1, #TACHO_STOP					// stop motor
+	bl		set_tacho_command_inx
+	pop		{pc}
+
+
+/**
+ *   Main application routine
+ *
+ *   Variables:
+ *        R4: seqno value
+ *        R5: Loop Counter value
+ *        R6: Prev. Position Pointer
+ *        R7: Curr. Position Pointer
+ *        R8: countperrot value
+ **/
 	.global main
 main:
 	push	{lr}
 	bl		prog_init
 	ldr		r0, =printstr
 	bl		prog_title
-	ldr		r0, =SLEEP_DURATION_500MS
-	bl		usleep
+	bl		wait_500ms
 	ldr		r0, =waittachostr
 	bl		prog_content1
 	bl		init_tacho
@@ -85,10 +117,12 @@ tacho_setup:
 	mov		r0, r4							// setup motor sequence number
 	ldr		r1, =countperrot				// Pointer to variable
 	bl		get_tacho_count_per_rot			// retrieve count per rotation
+	ldr		r8, =countperrot				// Pointer to variable
+	ldr		r8, [r8]						// Retrieve count_per_rot value
+
 
 	mov		r0, r4							// setup motor sequence number
-	ldr		r1, =countperrot				// Pointer to variable
-	ldr		r1, [r1]						// Retrieve count_per_rot value
+	mov		r1, r8							// setup countperrot value
 	bl		set_tacho_position_sp			// Setup target position for motor motion (one full rotation)
 
 	mov		r0, r4							// setup motor sequence number
@@ -107,6 +141,9 @@ tacho_setup:
 	bl		 set_tacho_stop_action_inx
 
 	mov		r5, #NUM_LOOPS					// Setup loop count
+	ldr		r6, =prevposition				// Pointer to prevposition
+	ldr		r7, =currposition				// Pointer to currposition
+
 loop:
 	ldr		r0, =loopstr
 	bl		prog_content2
@@ -115,16 +152,41 @@ loop:
 	bl		prog_display_integer
 
 	mov		r0, r4							// setup motor sequence number
+	mov		r1, r6							// Return value pointer
+	bl		get_tacho_position				// Take original position reading
+
+	mov		r0, r4							// setup motor sequence number
 	mov		r1, #TACHO_RUN_TO_REL_POS		// move relative to current position
 	bl		set_tacho_command_inx
 
-	ldr		r0, =SLEEP_DURATION_1SEC		// Delay 1 second
+wait_destpos:
+#ifdef BRUTE_FORCE_TIMING
+	// Brute force wait (time-based)
+	ldr		r0, =SLEEP_DURATION_2SEC		// Delay 2 second
 	bl		usleep
+	ldr		r0, =SLEEP_DURATION_2SEC		// Delay 2 second
+	bl		usleep
+#else
+	// Closed loop wait (Position-monitoring based)
+	ldr		r0, =SLEEP_DURATION_100MS
+	bl		usleep							// Check ever 100 ms
+
+	mov		r0, r4							// setup motor sequence number
+	mov		r1, r7							// Return value pointer
+	bl		get_tacho_position				// Take original position reading
+
+	ldr		r0, [r7]						// Curr Position
+	ldr		r1, [r6]						// Prev Position
+	add		r2, r1, r8						// targetposition = prevposition + countperrot
+	cmp		r0, r2							// (currposition - targetposition) < 0?
+	blt		wait_destpos						// have not reached the target, wait
+#endif
 
 	subs	r5, r5, #1						// Continue until done
 	bne		loop
 
 exit:
+	bl		stop_tacho
 	bl		prog_exit
 	pop		{pc}
 
