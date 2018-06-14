@@ -25,10 +25,18 @@
 
 /* common/include/scaffolding.h */
 	.extern	prog_init
-	.extern	prog_shutdown
+	.extern	prog_exit
 	.extern prog_title
 	.extern prog_content1
 	.extern prog_content2
 	.extern prog_contentX
+	.extern prog_clearscreen
+	.extern prog_set_cursorpos
+	.extern prog_display_string
+	.extern prog_display_integer
+	.extern prog_display_signed_int
+	.extern prog_display_unsigned_int
+	.extern prog_display_bin8
+	.extern prog_display_hex32
 
 #endif
