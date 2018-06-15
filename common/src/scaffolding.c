@@ -157,11 +157,11 @@ static bool term_disp_value(U32 value, VALTYPE type, U32 width)
 		break;
 
 	case BIN8:
-		print_bin((U8) value);
+		print_bin((U8) value & 0xFF);
 		break;
 
 	case HEX8:
-		printf("0x%02X",(U8) value);
+		printf("0x%02X",(U8) value & 0xFF);
 		break;
 
 	case HEX32:
