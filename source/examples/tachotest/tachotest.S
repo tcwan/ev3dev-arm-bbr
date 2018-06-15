@@ -149,7 +149,8 @@ loop:
 	bl		prog_content2
 
 	mov		r0, r5							// Display loop counter
-	bl		prog_display_integer
+	mov		r1, #2							// Right aligned 2 digit counter
+	bl		prog_display_integer_aligned
 
 	mov		r0, r4							// setup motor sequence number
 	mov		r1, r6							// Return value pointer
