@@ -120,11 +120,22 @@ void prog_display_string(char *string);
 /**
  * Display signed integer on LCD at current cursor position
  * The negative sign is displayed if it is negative,
- * otherwise no signed is displayed.
+ * otherwise no sign is displayed.
  *    @param value: signed long value
  *    @return None
  */
 void prog_display_integer(S32 value);
+
+/**
+ * Display signed integer on LCD at current cursor position
+ * The negative sign is displayed if it is negative,
+ * otherwise no sign is displayed.
+ * The displayed value is right aligned to the given width.
+ *    @param value: signed long value
+ *    @param width: maximum aligned width of output field
+ *    @return None
+ */
+void prog_display_integer_aligned(S32 value, U32 width);
 
 /**
  * Display signed integer on LCD at current cursor position
@@ -136,11 +147,31 @@ void prog_display_integer(S32 value);
 void prog_display_signed_int(S32 value);
 
 /**
+ * Display signed integer on LCD at current cursor position
+ * The sign is always displayed, regardless of the value
+ * being positive or negative.
+ * The displayed value is right aligned to the given width.
+ *    @param value: signed long value
+ *    @param width: maximum aligned width of output field
+ *    @return None
+ */
+void prog_display_signed_int_aligned(S32 value, U32 width);
+
+/**
  * Display unsigned integer on LCD at current cursor position
  *    @param value: unsigned long value
  *    @return None
  */
 void prog_display_unsigned_int(U32 value);
+
+/**
+ * Display unsigned integer on LCD at current cursor position
+ * The displayed value is right aligned to the given width.
+ *    @param value: unsigned long value
+ *    @param width: maximum aligned width of output field
+ *    @return None
+ */
+void prog_display_unsigned_int_aligned(U32 value, U32 width);
 
 /**
  * Display 8-bit binary on LCD at current cursor position

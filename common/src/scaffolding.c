@@ -58,6 +58,9 @@ typedef enum {
 	NORMAL_INT,
 	SIGNED_INT,
 	UNSIGNED_INT,
+	ALIGNED_INT,
+	ALIGNED_SINT,
+	ALIGNED_UINT,
 	BIN8,
 	HEX32
 } VALTYPE;
@@ -127,8 +130,9 @@ static void print_bin(U8 value) {
 	printf("0b%s%s", bit_rep[(value & 0xF0) >> 4], bit_rep[value & 0x0F]);
 }
 
-static bool term_disp_value(U32 value, VALTYPE type)
+static bool term_disp_value(U32 value, VALTYPE type, U32 width)
 {
+	/* It does not make sense to provide alignment for Binary and Hex outputs */
 	switch(type) {
 
 	case SIGNED_INT:
@@ -137,6 +141,18 @@ static bool term_disp_value(U32 value, VALTYPE type)
 
 	case UNSIGNED_INT:
 		printf("%lu",(U32) value);
+		break;
+
+	case ALIGNED_INT:
+		printf("%*ld",(int) width, (S32) value);
+		break;
+
+	case ALIGNED_SINT:
+		printf("%+*ld",(int) width, (S32) value);
+		break;
+
+	case ALIGNED_UINT:
+		printf("%*lu",(int) width, (S32) value);
 		break;
 
 	case BIN8:
@@ -149,7 +165,7 @@ static bool term_disp_value(U32 value, VALTYPE type)
 
 	case NORMAL_INT:
 	default:
-		printf("%ld",(S32) value);
+		printf("%ld", (S32) value);
 		break;
 	}
 
@@ -243,34 +259,42 @@ void prog_display_integer(S32 value)
 {
 	//printf("Debug: prog_display_integer()\n");
 	/* Display signed integer value at current cursor position */
-	term_disp_value(value, NORMAL_INT);
+	term_disp_value(value, NORMAL_INT, 0);
 }
+
+void prog_display_integer_aligned(S32 value, U32 width)
+{
+	//printf("Debug: prog_display_integer()\n");
+	/* Display signed integer value right aligned at current cursor position  */
+	term_disp_value(value, ALIGNED_INT, width);
+}
+
 
 void prog_display_signed_int(S32 value)
 {
 	//printf("Debug: prog_display_signed_int()\n");
 	/* Display signed integer value at current cursor position with sign (+ or -) */
-	term_disp_value(value, SIGNED_INT);
+	term_disp_value(value, SIGNED_INT, 0);
 }
 
 void prog_display_unsigned_int(U32 value)
 {
 	//printf("Debug: prog_display_unsigned_int()\n");
 	/* Display unsigned integer value at current cursor position */
-	term_disp_value(value, UNSIGNED_INT);
+	term_disp_value(value, UNSIGNED_INT, 0);
 }
 
 void prog_display_bin8(U8 binvalue)
 {
 	//printf("Debug: prog_display_bin8()\n");
 	/* Display 8-bit binary value at current cursor position */
-	term_disp_value((U32) binvalue, BIN8);
+	term_disp_value((U32) binvalue, BIN8, 0);
 }
 
 void prog_display_hex32(U32 hexvalue)
 {
 	//printf("Debug: prog_display_hex32()\n");
 	/* Display 32-bit hexadecimal value at current cursor position */
-	term_disp_value(hexvalue, HEX32);
+	term_disp_value(hexvalue, HEX32, 0);
 }
 

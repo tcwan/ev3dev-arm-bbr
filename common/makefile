@@ -53,7 +53,7 @@ endif
 D_INSTALL_H_FROM = include
 
 # -- source directories
-D_C = src
+D_C = $(TOP)/common/src
 
 D_CXX = $(D_C)
 D_ASM = $(D_C)
@@ -129,7 +129,7 @@ ASMFLAGS = -Wall -g
 # ---------------------------------
 #   files lists
 # ---------------------------------
-G_H = $(wildcard $(addsuffix /*$(E_H), $(D_H)))
+S_H = $(wildcard $(addsuffix /*$(E_H), $(D_H)))
 
 S_C = $(sort $(wildcard $(addsuffix /*$(E_C), $(D_C))) $(G_C))
 S_CXX = $(sort $(wildcard $(addsuffix /*$(E_CXX), $(D_CXX))) $(G_CXX))
@@ -229,15 +229,15 @@ $(F_BIN_SHARED): $(O)
 	$(call final,$@)
 	@echo "*** $(F_BIN_SHARED) ***"
 
-$(S_C) $(S_CXX) $(S_ASM): $(G_H)
+$(S_C) $(S_CXX) $(S_ASM): $(S_H)
 
-$(O_C): $(D_OBJ)/%$(E_OBJ): %$(E_C)
+$(O_C): $(D_OBJ)/%$(E_OBJ): $(D_C)/%$(E_C)
 	$(call wrap,$(CC),$(CFLAGS) -c $< -o $@)
 
-$(O_CXX): $(D_OBJ)/%$(E_OBJ): %$(E_CXX)
+$(O_CXX): $(D_OBJ)/%$(E_OBJ): $(D_CXX)/%$(E_CXX)
 	$(call wrap,$(CXX),$(CXXFLAGS) -c $< -o $@)
 
-$(O_ASM): $(D_OBJ)/%$(E_OBJ): %$(E_ASM)
+$(O_ASM): $(D_OBJ)/%$(E_OBJ): $(D_ASM)/%$(E_ASM)
 	$(call wrap,$(CC),$(ASMFLAGS) -c $< -o $@)
 
 # -- create 'object' and 'bin' directories
