@@ -34,8 +34,11 @@
 	.extern prog_set_cursorpos
 	.extern prog_display_string
 	.extern prog_display_integer
+	.extern prog_display_integer_aligned
 	.extern prog_display_signed_int
+	.extern prog_display_signed_int_aligned
 	.extern prog_display_unsigned_int
+	.extern prog_display_unsigned_int_aligned
 	.extern prog_display_bin8
 	.extern prog_display_hex32
 
