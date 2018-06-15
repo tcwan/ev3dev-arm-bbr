@@ -10,7 +10,7 @@ ASM_HEADERS = $(EVDEVC)/asm/*.h
 
 MAKEFILE_BASE = ../Makefile
 
-.PHONY: default clean clean-binary clean-all
+.PHONY: default clean clean-binary debug debug-clean debug-clean-binary release release-clean
 
 default: debug
 
