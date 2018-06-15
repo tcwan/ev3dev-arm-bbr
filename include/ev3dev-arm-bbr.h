@@ -40,6 +40,7 @@
 	.extern prog_display_unsigned_int
 	.extern prog_display_unsigned_int_aligned
 	.extern prog_display_bin8
+	.extern prog_display_hex8
 	.extern prog_display_hex32
 
 #endif

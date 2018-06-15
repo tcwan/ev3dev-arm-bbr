@@ -181,6 +181,14 @@ void prog_display_unsigned_int_aligned(U32 value, U32 width);
 void prog_display_bin8(U8 binvalue);
 
 /**
+ * Display 8-bit hexadecimal on LCD at current cursor position
+ *    @param value: 8-bit hexadecimal value
+ *    @return None
+ */
+void prog_display_hex8(U8 hexvalue);
+
+
+/**
  * Display 32-bit hexadecimal on LCD at current cursor position
  *    @param value: 32-bit hexadecimal value
  *    @return None

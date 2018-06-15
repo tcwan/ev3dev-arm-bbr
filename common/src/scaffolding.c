@@ -62,6 +62,7 @@ typedef enum {
 	ALIGNED_SINT,
 	ALIGNED_UINT,
 	BIN8,
+	HEX8,
 	HEX32
 } VALTYPE;
 
@@ -157,6 +158,10 @@ static bool term_disp_value(U32 value, VALTYPE type, U32 width)
 
 	case BIN8:
 		print_bin((U8) value);
+		break;
+
+	case HEX8:
+		printf("0x%02X",(U8) value);
 		break;
 
 	case HEX32:
@@ -304,6 +309,14 @@ void prog_display_bin8(U8 binvalue)
 	/* Display 8-bit binary value at current cursor position */
 	term_disp_value((U32) binvalue, BIN8, 0);
 }
+
+void prog_display_hex8(U8 hexvalue)
+{
+	//printf("Debug: prog_display_hex8()\n");
+	/* Display 8-bit hexadecimal value at current cursor position */
+	term_disp_value((U32) hexvalue, HEX8, 0);
+}
+
 
 void prog_display_hex32(U32 hexvalue)
 {
