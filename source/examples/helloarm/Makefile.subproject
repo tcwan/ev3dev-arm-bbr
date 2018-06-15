@@ -2,12 +2,15 @@
 TOP = ../../..
 
 EVDEVC = $(TOP)/ev3dev-c
+ARMBBR = $(TOP)/common
+
 EVDEVCLIBS = $(EVDEVC)/lib/libev3dev-c.a $(EVDEVC)/lib/libev3dev-c.so
+ARMBBRLIBS = $(ARMBBR)/lib/libev3dev-arm-bbr.a $(ARMBBR)/lib/libev3dev-arm-bbr.so
 ASM_HEADERS = $(EVDEVC)/asm/*.h
 
 MAKEFILE_BASE = ../../Makefile
 
-.PHONY: default clean clean-binary debug debug-clean debug-clean-binary release release-clean
+.PHONY: default clean clean-binary clean-all
 
 default: debug
 
@@ -17,7 +20,7 @@ clean-binary: debug-clean-binary
 
 clean-all: debug-clean
 
-debug:  $(EVDEVCLIBS) $(ASM_HEADERS)
+debug:  $(EVDEVCLIBS) $(ARMBBRLIBS) $(ASM_HEADERS)
 	$(MAKE) -f $(MAKEFILE_BASE).Debug PROJTOP=$(TOP)
 
 debug-clean:
@@ -26,7 +29,7 @@ debug-clean:
 debug-clean-binary:
 	$(MAKE) -f $(MAKEFILE_BASE).Debug clean-binary PROJTOP=$(TOP)
 
-release:  $(LIBS) $(ASM_HEADERS)
+release:  $(EVDEVCLIBS) $(ARMBBRLIBS) $(ASM_HEADERS)
 	$(MAKE) -f $(MAKEFILE_BASE).Release PROJTOP=$(TOP)
 
 release-clean:
