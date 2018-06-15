@@ -277,11 +277,25 @@ void prog_display_signed_int(S32 value)
 	term_disp_value(value, SIGNED_INT, 0);
 }
 
+void prog_display_signed_int_aligned(S32 value, U32 width)
+{
+	//printf("Debug: prog_display_signed_int()\n");
+	/* Display signed integer value at current cursor position with sign (+ or -) */
+	term_disp_value(value, ALIGNED_SINT, width);
+}
+
 void prog_display_unsigned_int(U32 value)
 {
 	//printf("Debug: prog_display_unsigned_int()\n");
 	/* Display unsigned integer value at current cursor position */
 	term_disp_value(value, UNSIGNED_INT, 0);
+}
+
+void prog_display_unsigned_int_aligned(U32 value, U32 width)
+{
+	//printf("Debug: prog_display_unsigned_int()\n");
+	/* Display unsigned integer value at current cursor position */
+	term_disp_value(value, ALIGNED_UINT, width);
 }
 
 void prog_display_bin8(U8 binvalue)
