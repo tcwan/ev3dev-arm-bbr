@@ -10,7 +10,9 @@ ASM_HEADERS = $(EVDEVC)/asm/*.h
 
 # meta builds
 
-.PHONY: ev3dev-c-libs ev3dev-c-shared-libs arm-bbr-libs arm-bbr-shared-libs
+.PHONY: ev3dev-c-libs ev3dev-c-shared-libs arm-bbr-libs arm-bbr-shared-libs \
+		clean clean-ev3dev-c-libs clean-arm-bbr-libs clean-libs clean-headers asm-headers \
+		libs shared-libs all docs
 
 ev3dev-c-libs:: $(EVDEVC)/lib/libev3dev-c.a
 
