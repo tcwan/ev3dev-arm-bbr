@@ -65,6 +65,7 @@ docs::
 	cd doc; \
 	sed -e 's/\\mainpage/\\page/' -e 's/in4lio/tcwan/' ev3devcmainpage.dox > ev3devcpage.dox;  \
 	rm ev3devcmainpage.dox; \
+	cat extras/bbrpreface.dox ../README.md extras/bbrepilogue.dox > bbrmainpage.dox; \
 	doxygen
 	
 # Actual builds
