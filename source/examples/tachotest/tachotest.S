@@ -6,6 +6,7 @@
  *//**
  *  \file  tachotest.S
  *  \brief  ARM-based Tacho Motor (LEGO Large Servo Motor) example.
+ *			Controls the first detected Large Servo Motor.
  *  \author  Tat-Chee Wan (tcwan@usm.my)
  *  \copyright  See the LICENSE file.
  */
