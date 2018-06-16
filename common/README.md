@@ -1,4 +1,4 @@
-## ARM BBR Common Library Compilation Notes
+# Compiling the ARM BBR Common Library
 
 ### How to make and install STATIC library
 
