@@ -61,7 +61,11 @@ source/*/*::
 	make -f Makefile.subproject -C $@;
 
 docs::
-	cd doc; doxygen
+	cp $(EVDEVC)/doc/mainpage.dox doc/ev3devcmainpage.dox; \
+	cd doc; \
+	sed -e 's/\\mainpage/\\page/' -e 's/in4lio/tcwan/' ev3devcmainpage.dox > ev3devcpage.dox;  \
+	rm ev3devcmainpage.dox; \
+	doxygen
 	
 # Actual builds
 
