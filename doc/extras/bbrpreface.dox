@@ -1,0 +1,11 @@
+/**
+ *  \file  bbrmainpage.dox
+ *  \brief  Main page of ARM BBR docs.
+ *  \author  Tat-Chee Wan (tcwan@usm.my)
+ *  \copyright  See the LICENSE file.
+ */
+
+/** \mainpage ARM BBR Library
+
+\htmlinclude mainpage.style
+
