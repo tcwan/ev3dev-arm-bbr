@@ -28,6 +28,8 @@ bool dvcs_search_dc_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport,
 	if (ev3_search_dc_plugged_in(port, extport, &port_sn, from) \
 			&& ev3_search_dc(type_inx, &type_sn, from)) {
 		retval = _is_sn_identical_and_valid(port_sn, type_sn);	// Correct motor type plugged into correct (valid) port
+		if (retval)
+			*sn = port_sn;
 
 	}
 
@@ -43,6 +45,8 @@ bool dvcs_search_sensor_type_for_port(INX_T type_inx, uint8_t port, uint8_t extp
 	if (ev3_search_sensor_plugged_in(port, extport, &port_sn, from) \
 			&& ev3_search_sensor(type_inx, &type_sn, from)) {
 		retval = _is_sn_identical_and_valid(port_sn, type_sn);	// Correct motor type plugged into correct (valid) port
+		if (retval)
+			*sn = port_sn;
 
 	}
 
@@ -57,6 +61,8 @@ bool dvcs_search_servo_type_for_port(INX_T type_inx, uint8_t port, uint8_t extpo
 	if (ev3_search_servoo_plugged_in(port, extport, &port_sn, from) \
 			&& ev3_search_servo(type_inx, &type_sn, from)) {
 		retval = _is_sn_identical_and_valid(port_sn, type_sn);	// Correct motor type plugged into correct (valid) port
+		if (retval)
+			*sn = port_sn;
 
 	}
 
@@ -72,6 +78,8 @@ bool dvcs_search_tacho_type_for_port(INX_T type_inx, uint8_t port, uint8_t extpo
 	if (ev3_search_tacho_plugged_in(port, extport, &port_sn, from) \
 			&& ev3_search_tacho(type_inx, &type_sn, from)) {
 		retval = _is_sn_identical_and_valid(port_sn, type_sn);	// Correct motor type plugged into correct (valid) port
+		if (retval)
+			*sn = port_sn;
 
 	}
 
