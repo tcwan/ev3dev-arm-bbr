@@ -175,7 +175,7 @@ wait_destpos:
 
 	mov		r0, r4							// setup motor sequence number
 	mov		r1, r7							// Return value pointer
-	bl		get_tacho_position				// Take original position reading
+	bl		get_tacho_position				// Take new position reading
 
 	ldr		r0, [r7]						// Curr Position
 	ldr		r1, [r6]						// Prev Position
