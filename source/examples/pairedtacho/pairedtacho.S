@@ -15,6 +15,7 @@
 #define __ASSEMBLY__
 
 #include "ev3_both.h"
+#include "ev3_port.h"
 #include "ev3_tacho.h"
 #include "ev3dev-arm-bbr.h"
 
@@ -89,7 +90,7 @@ find_l_motor:
 	mov		r0, #TACHO_MOTOR_TYPE
 	mov		r1, #L_MOTOR_PORT
 	mov		r2, #L_MOTOR_EXT_PORT
-	mov		r3, =leftseqno
+	ldr		r3, =leftseqno
 	bl		dvcs_search_tacho_type_for_port	// Search for TACHO_MOTOR_TYPE attached to L_MOTOR_PORT, return found flag
 	cmp		r0, #FALSE
 	bne		find_r_motor
@@ -102,7 +103,7 @@ find_r_motor:
 	mov		r0, #TACHO_MOTOR_TYPE
 	mov		r1, #R_MOTOR_PORT
 	mov		r2, #R_MOTOR_EXT_PORT
-	mov		r3, =rightseqno
+	ldr		r3, =rightseqno
 	bl		dvcs_search_tacho_type_for_port	// Search for TACHO_MOTOR_TYPE attached to R_MOTOR_PORT, return found flag
 	cmp		r0, #FALSE
 	bne		found_motors
@@ -285,7 +286,7 @@ check_left_tacho:
 	add		r2, r1, r11						// targetposition = prevposition + countperrot
 	cmp		r0, r2							// (currposition - targetposition) < 0?
 	blt		check_right_tacho				// have not reached the target, check other motor
-	bl		stop_left_tacho					// Don't let one motor get ahead of the other
+	bl		stop_lefttacho					// Don't let one motor get ahead of the other
 
 check_right_tacho:
 	ldr		r0, [r10]						// Curr right Position
@@ -293,7 +294,7 @@ check_right_tacho:
 	add		r2, r1, r11						// targetposition = prevposition + countperrot
 	cmp		r0, r2							// (currposition - targetposition) < 0?
 	blt		check_both_stopped				// have not reached the target, check other motor
-	bl		stop_right_tacho				// Don't let one motor get ahead of the other
+	bl		stop_righttacho				// Don't let one motor get ahead of the other
 
 check_both_stopped:
 	cmp		r12, #0							// have both motors stopped?
