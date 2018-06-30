@@ -43,4 +43,10 @@
 	.extern prog_display_hex8
 	.extern prog_display_hex32
 
+	/* common/include/devices.h */
+	.extern dvcs_search_dc_type_for_port
+	.extern dvcs_search_sensor_type_for_port
+	.extern dvcs_search_servo_type_for_port
+	.extern dvcs_search_tacho_type_for_port
+
 #endif
