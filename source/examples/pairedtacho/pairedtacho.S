@@ -20,9 +20,9 @@
 
 #undef  BRUTE_FORCE_TIMING
 
-#define L_MOTOR_PORT      OUTPUT_C
+#define L_MOTOR_PORT      OUTPUT_B
 #define L_MOTOR_EXT_PORT  EXT_PORT__NONE_
-#define R_MOTOR_PORT      OUTPUT_B
+#define R_MOTOR_PORT      OUTPUT_C
 #define R_MOTOR_EXT_PORT  EXT_PORT__NONE_
 
 #define TACHO_MOTOR_TYPE 	LEGO_EV3_L_MOTOR		// Change to LEGO_EV3_M_MOTOR for Medium Servo Motor
@@ -44,12 +44,14 @@
 
 // Note: .asciz doesn't always null terminate the string??
 printstr:		.asciz "Dual Paired Tacho Motor (LEGO Large Servo Motor) Test\n"
-waittachostr:	.asciz "Waiting for Tacho Motors...\n"
-foundrighttachostr:	.asciz "Found Right Tacho Motor at index: \0"
-foundlefttachostr:	.asciz "Found Left Tacho Motor at index: \0"
+waitltachostr:	.asciz 		"Waiting (Left Tacho on Port B)... \n"
+waitrtachostr:	.asciz 		"Waiting (Right Tacho on Port C)...\n"
+foundlefttachostr:	.asciz 	"Tacho: Left (\0"
+foundrighttachostr:	.asciz 	"), Right (\0"
+foundtachoendstr:   .asciz  ")\0"
 loopstr:		.asciz "Remaining loops: \0"
 
-countperrot:	.word	0					// Tacho count per rotation (360 deg)
+countperrot:	.word	0					// Tacho count per rotation (360 deg)		// Assume identical for both motoros
 prevrposition:	.word	0					// Previous position of the right tacho motor
 prevlposition:	.word	0					// Previous position of the left tacho motor
 currrposition:	.word	0					// Current position of the right tacho motor
@@ -76,28 +78,74 @@ init_tacho:
 	push	{lr}
 	bl		ev3_tacho_init
 	cmp		r0, #0
-	bge		find_motor
+	bge		find_l_motor
 	ldr		r0, =SLEEP_DURATION_1SEC
 	bl		usleep
 	b		init_tacho						// Loop until tacho motors detected
-find_motor:
+
+find_l_motor:
+	ldr		r0, =waitltachostr
+	bl		prog_content1
 	mov		r0, #TACHO_MOTOR_TYPE
-	ldr		r1, =seqno						// pointer to seqno variable
-	mov		r2, #0
-	bl		ev3_search_tacho				// Search for TACHO_MOTOR_TYPE starting from motor0, return found flag
+	mov		r1, #L_MOTOR_PORT
+	mov		r2, #L_MOTOR_EXT_PORT
+	mov		r3, =leftseqno
+	bl		dvcs_search_tacho_type_for_port	// Search for TACHO_MOTOR_TYPE attached to L_MOTOR_PORT, return found flag
 	cmp		r0, #FALSE
-	bne		found_motor						// Motor not found
+	bne		find_r_motor
 	bl		wait_500ms
-	b		find_motor						// Delay 500 ms, try again
-found_motor:
+	b		find_l_motor					// Delay 500 ms, try again
+
+find_r_motor:
+	ldr		r0, =waitrtachostr
+	bl		prog_content1
+	mov		r0, #TACHO_MOTOR_TYPE
+	mov		r1, #R_MOTOR_PORT
+	mov		r2, #R_MOTOR_EXT_PORT
+	mov		r3, =rightseqno
+	bl		dvcs_search_tacho_type_for_port	// Search for TACHO_MOTOR_TYPE attached to R_MOTOR_PORT, return found flag
+	cmp		r0, #FALSE
+	bne		found_motors
+	bl		wait_500ms
+	b		find_r_motor					// Delay 500 ms, try again
+
+found_motors:
+	ldr		r0, =foundlefttachostr
+	bl		prog_content2
+
+	ldr		r0, =leftseqno
+	ldrb	r4, [r4]						// read seqno U8 from memory into r4
+	mov		r0, r4							// setup left motor sequence number
+	bl		prog_display_integer
+
+	ldr		r0, =foundrighttachostr
+	bl		prog_display_string
+
+	ldr		r0, =rightseqno
+	ldrb	r5, [r5]						// read seqno U8 from memory into r5
+	mov		r0, r5							// setup right motor sequence number
+	bl		prog_display_integer
+
+	ldr		r0, =foundtachoendstr
+	bl		prog_display_string
 	pop		{pc}
 
-stop_tacho:
+stop_lefttacho:
 	push	{lr}
-	ldr		r0, =seqno
+	ldr		r0, =leftseqno
 	ldrb	r0, [r0]						// setup motor sequence number
 	mov		r1, #TACHO_STOP					// stop motor
 	bl		set_tacho_command_inx
+	sub		r12, r12, #1					// one motor stopped
+	pop		{pc}
+
+stop_righttacho:
+	push	{lr}
+	ldr		r0, =rightseqno
+	ldrb	r0, [r0]						// setup motor sequence number
+	mov		r1, #TACHO_STOP					// stop motor
+	bl		set_tacho_command_inx
+	sub		r12, r12, #1					// one motor stopped
 	pop		{pc}
 
 
@@ -105,11 +153,15 @@ stop_tacho:
  *   Main application routine
  *
  *   Variables:
- *        R4: seqno value
- *        R5: Loop Counter value
- *        R6: Prev. Position Pointer
- *        R7: Curr. Position Pointer
- *        R8: countperrot value
+ *        R4: left seqno value
+ *        R5: right seqno value
+ *        R6: Loop Counter value
+ *        R7: Prev. left Position Pointer
+ *        R8: Curr. left Position Pointer
+ *        R9: Prev. right Position Pointer
+ *        R10: Curr. right Position Pointer
+ *        R11: countperrot value
+ *		  R12: No of running motors
  **/
 	.global main
 main:
@@ -118,61 +170,92 @@ main:
 	ldr		r0, =printstr
 	bl		prog_title
 	bl		wait_500ms
-	ldr		r0, =waittachostr
-	bl		prog_content1
-	bl		init_tacho
+
+	bl		init_tacho						// r4 and r5 setup with left and right tacho seqnos
 
 tacho_setup:
-	ldr		r0, =foundtachostr
-	bl		prog_content1
-	ldr		r4, =seqno
-	ldrb	r4, [r4]						// read seqno U8 from memory into r4
-	mov		r0, r4							// setup motor sequence number
-	bl		prog_display_integer
+	ldr		r11, =countperrot				// Pointer to variable
 
 	mov		r0, r4							// setup motor sequence number
-	ldr		r1, =countperrot				// Pointer to variable
+	mov		r1, r11							// Pointer to variable
 	bl		get_tacho_count_per_rot			// retrieve count per rotation
-	ldr		r8, =countperrot				// Pointer to variable
-	ldr		r8, [r8]						// Retrieve count_per_rot value
+	ldr		r11, [r11]						// Load count_per_rot value
 
-
+	// Setup target position for motor rotation (one full rotation)
 	mov		r0, r4							// setup motor sequence number
-	mov		r1, r8							// setup countperrot value
-	bl		set_tacho_position_sp			// Setup target position for motor motion (one full rotation)
+	mov		r1, r11							// setup countperrot value
+	bl		set_tacho_position_sp			// Setup target position
 
+	mov		r0, r5							// setup motor sequence number
+	mov		r1, r11							// setup countperrot value
+	bl		set_tacho_position_sp			// Setup target position
+
+	// Setup Ramp/Up down duration (ms)
 	mov		r0, r4							// setup motor sequence number
 	ldr		r1, =TACHO_RAMPTIME_MS			// Ramp up duration (ms)
 	bl		set_tacho_ramp_up_sp
+
+	mov		r0, r5							// setup motor sequence number
+	ldr		r1, =TACHO_RAMPTIME_MS			// Ramp up duration (ms)
+	bl		set_tacho_ramp_up_sp
+
 	mov		r0, r4							// setup motor sequence number
 	ldr		r1, =TACHO_RAMPTIME_MS			// Ramp down duration (ms)
 	bl		set_tacho_ramp_down_sp
 
+	mov		r0, r5							// setup motor sequence number
+	ldr		r1, =TACHO_RAMPTIME_MS			// Ramp down duration (ms)
+	bl		set_tacho_ramp_down_sp
+
+	// Setup motor speed
 	mov		r0, r4							// setup motor sequence number
 	mov		r1, #TACHO_MAX_SPEED			// Target speed of  motor
 	bl		 set_tacho_speed_sp
 
+	mov		r0, r5							// setup motor sequence number
+	mov		r1, #TACHO_MAX_SPEED			// Target speed of  motor
+	bl		 set_tacho_speed_sp
+
+	// Setup motor stop mode
 	mov		r0, r4							// setup motor sequence number
 	mov		r1, #TACHO_STOP_MODE			// How to stop the motor
 	bl		 set_tacho_stop_action_inx
 
-	mov		r5, #NUM_LOOPS					// Setup loop count
-	ldr		r6, =prevposition				// Pointer to prevposition
-	ldr		r7, =currposition				// Pointer to currposition
+	mov		r0, r5							// setup motor sequence number
+	mov		r1, #TACHO_STOP_MODE			// How to stop the motor
+	bl		 set_tacho_stop_action_inx
 
+	mov		r6, #NUM_LOOPS					// Setup loop count
+	ldr		r7, =prevlposition				// Pointer to prevlposition
+	ldr		r8, =currlposition				// Pointer to currlposition
+	ldr		r9, =prevrposition				// Pointer to prevrposition
+	ldr		r10, =currrposition				// Pointer to currrposition
+
+// FIXME: Need to support dual motors
 loop:
 	ldr		r0, =loopstr
 	bl		prog_content2
 
-	mov		r0, r5							// Display loop counter
+	mov		r0, r6							// Display loop counter
 	mov		r1, #2							// Right aligned 2 digit counter
 	bl		prog_display_integer_aligned
 
-	mov		r0, r4							// setup motor sequence number
-	mov		r1, r6							// Return value pointer
-	bl		get_tacho_position				// Take original position reading
+	// Setup number of running motors
+	mov		r12, #2							// 2 motors are running
+
+	mov		r0, r4							// setup left motor sequence number
+	mov		r1, r7							// Return value pointer
+	bl		get_tacho_position				// Take original left position reading
+
+	mov		r0, r5							// setup right motor sequence number
+	mov		r1, r9							// Return value pointer
+	bl		get_tacho_position				// Take original right position reading
 
 	mov		r0, r4							// setup motor sequence number
+	mov		r1, #TACHO_RUN_TO_REL_POS		// move relative to current position
+	bl		set_tacho_command_inx
+
+	mov		r0, r5							// setup motor sequence number
 	mov		r1, #TACHO_RUN_TO_REL_POS		// move relative to current position
 	bl		set_tacho_command_inx
 
@@ -188,22 +271,45 @@ wait_destpos:
 	ldr		r0, =SLEEP_DURATION_100MS
 	bl		usleep							// Check ever 100 ms
 
-	mov		r0, r4							// setup motor sequence number
-	mov		r1, r7							// Return value pointer
-	bl		get_tacho_position				// Take original position reading
+	mov		r0, r4							// setup left motor sequence number
+	mov		r1, r8							// Return value pointer
+	bl		get_tacho_position				// Take new left position reading
 
-	ldr		r0, [r7]						// Curr Position
-	ldr		r1, [r6]						// Prev Position
-	add		r2, r1, r8						// targetposition = prevposition + countperrot
+	mov		r0, r5							// setup right motor sequence number
+	mov		r1, r10							// Return value pointer
+	bl		get_tacho_position				// Take new right position reading
+
+check_left_tacho:
+	ldr		r0, [r8]						// Curr left Position
+	ldr		r1, [r7]						// Prev left Position
+	add		r2, r1, r11						// targetposition = prevposition + countperrot
 	cmp		r0, r2							// (currposition - targetposition) < 0?
-	blt		wait_destpos						// have not reached the target, wait
+	blt		check_right_tacho				// have not reached the target, check other motor
+	bl		stop_left_tacho					// Don't let one motor get ahead of the other
+
+check_right_tacho:
+	ldr		r0, [r10]						// Curr right Position
+	ldr		r1, [r9]						// Prev right Position
+	add		r2, r1, r11						// targetposition = prevposition + countperrot
+	cmp		r0, r2							// (currposition - targetposition) < 0?
+	blt		check_both_stopped				// have not reached the target, check other motor
+	bl		stop_right_tacho				// Don't let one motor get ahead of the other
+
+check_both_stopped:
+	cmp		r12, #0							// have both motors stopped?
+	bgt		wait_destpos					// At least one motor is still running
+
 #endif
 
 	subs	r5, r5, #1						// Continue until done
 	bne		loop
 
 exit:
-	bl		stop_tacho
+#if 0
+	bl		stop_left_tacho
+	bl		stop_right_tacho				// just in case
+#endif
+
 	bl		prog_exit
 	pop		{pc}
 
