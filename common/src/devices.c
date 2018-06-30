@@ -15,11 +15,12 @@
 #include "devices.h"
 #include <stdio.h>
 
+/* Internal Routines */
 bool _is_sn_identical_and_valid(uint8_t port_sn, uint8_t type_sn) {
 	return ((port_sn == type_sn) && (port_sn != DESC_LIMIT) && (type_sn != DESC_LIMIT));
 }
 
-bool dvcs_search_dc_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport, uint8_t *sn, uint8_t from ) {
+inline bool ev3_search_dc_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport, uint8_t *sn, uint8_t from ) {
 
 	bool retval = false;
 	uint8_t port_sn = DESC_LIMIT;
@@ -36,7 +37,7 @@ bool dvcs_search_dc_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport,
 	return retval;
 }
 
-bool dvcs_search_sensor_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport, uint8_t *sn, uint8_t from ) {
+inline bool ev3_search_sensor_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport, uint8_t *sn, uint8_t from ) {
 
 	bool retval = false;
 	uint8_t port_sn = DESC_LIMIT;
@@ -52,7 +53,7 @@ bool dvcs_search_sensor_type_for_port(INX_T type_inx, uint8_t port, uint8_t extp
 
 	return retval;
 }
-bool dvcs_search_servo_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport, uint8_t *sn, uint8_t from ) {
+inline bool ev3_search_servo_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport, uint8_t *sn, uint8_t from ) {
 
 	bool retval = false;
 	uint8_t port_sn = DESC_LIMIT;
@@ -69,7 +70,7 @@ bool dvcs_search_servo_type_for_port(INX_T type_inx, uint8_t port, uint8_t extpo
 	return retval;
 }
 
-bool dvcs_search_tacho_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport, uint8_t *sn, uint8_t from ) {
+inline bool ev3_search_tacho_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport, uint8_t *sn, uint8_t from ) {
 
 	bool retval = false;
 	uint8_t port_sn = DESC_LIMIT;
@@ -84,4 +85,27 @@ bool dvcs_search_tacho_type_for_port(INX_T type_inx, uint8_t port, uint8_t extpo
 	}
 
 	return retval;
+}
+
+/* Public Routines */
+bool dvcs_search_dc_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport, uint8_t *sn ) {
+
+	return ev3_search_dc_type_for_port(inx, port, extport, sn, 0);				// Wrapper for actual function
+}
+
+bool dvcs_search_sensor_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport, uint8_t *sn ) {
+
+	return ev3_search_sensor_type_for_port(inx, port, extport, sn, 0);			// Wrapper for actual function
+}
+
+bool dvcs_search_servo_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport, uint8_t *sn ) {
+
+	return ev3_search_servo_type_for_port(inx, port, extport, sn, 0);			// Wrapper for actual function
+
+}
+
+bool dvcs_search_tacho_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport, uint8_t *sn) {
+
+	return ev3_search_tacho_type_for_port(inx, port, extport, sn, 0);			// Wrapper for actual function
+
 }
