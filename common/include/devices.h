@@ -15,7 +15,10 @@
 #include <stdbool.h>
 #include "ev3dev-arm-ctypes.h"
 
-#include <ev3_both.h>
+#include <ev3.h>
+#include <ev3_dc.h>
+#include <ev3_sensor.h>
+#include <ev3_servo.h>
 #include <ev3_tacho.h>
 
 /** @addtogroup common */

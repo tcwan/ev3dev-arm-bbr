@@ -59,7 +59,7 @@ D_CXX = $(D_C)
 D_ASM = $(D_C)
 
 # -- include directories
-D_H = $(TOP)/common/include $(TOP)/include
+D_H = $(TOP)/common/include $(TOP)/include $(TOP)/ev3dev-c/source/ev3
 
 # -- library directory
 D_BIN = $(TOP)/common/lib

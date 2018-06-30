@@ -59,7 +59,7 @@ inline bool ev3_search_servo_type_for_port(INX_T type_inx, uint8_t port, uint8_t
 	uint8_t port_sn = DESC_LIMIT;
 	uint8_t type_sn = DESC_LIMIT;
 
-	if (ev3_search_servoo_plugged_in(port, extport, &port_sn, from) \
+	if (ev3_search_servo_plugged_in(port, extport, &port_sn, from) \
 			&& ev3_search_servo(type_inx, &type_sn, from)) {
 		retval = _is_sn_identical_and_valid(port_sn, type_sn);	// Correct motor type plugged into correct (valid) port
 		if (retval)
@@ -90,22 +90,22 @@ inline bool ev3_search_tacho_type_for_port(INX_T type_inx, uint8_t port, uint8_t
 /* Public Routines */
 bool dvcs_search_dc_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport, uint8_t *sn ) {
 
-	return ev3_search_dc_type_for_port(inx, port, extport, sn, 0);				// Wrapper for actual function
+	return ev3_search_dc_type_for_port(type_inx, port, extport, sn, 0);				// Wrapper for actual function
 }
 
 bool dvcs_search_sensor_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport, uint8_t *sn ) {
 
-	return ev3_search_sensor_type_for_port(inx, port, extport, sn, 0);			// Wrapper for actual function
+	return ev3_search_sensor_type_for_port(type_inx, port, extport, sn, 0);			// Wrapper for actual function
 }
 
 bool dvcs_search_servo_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport, uint8_t *sn ) {
 
-	return ev3_search_servo_type_for_port(inx, port, extport, sn, 0);			// Wrapper for actual function
+	return ev3_search_servo_type_for_port(type_inx, port, extport, sn, 0);			// Wrapper for actual function
 
 }
 
 bool dvcs_search_tacho_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport, uint8_t *sn) {
 
-	return ev3_search_tacho_type_for_port(inx, port, extport, sn, 0);			// Wrapper for actual function
+	return ev3_search_tacho_type_for_port(type_inx, port, extport, sn, 0);			// Wrapper for actual function
 
 }
