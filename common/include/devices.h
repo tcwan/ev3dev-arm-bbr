@@ -42,7 +42,7 @@
  * Note: DC motors are LEGO RCX or Powerfunctions motors which do not have feedback or control features
  *
  */
-bool dvcs_search_dc_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport, uint8_t *sn );
+bool dvcs_search_dc_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn );
 
 /** Search for the sequence number for a specific sensor type by plug-in attributes
  *
@@ -53,7 +53,7 @@ bool dvcs_search_dc_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport,
  * @return Flag - the sensor is found.
  *
  */
-bool dvcs_search_sensor_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport, uint8_t *sn );
+bool dvcs_search_sensor_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn );
 
 /** Search for the sequence number for a specific servo motor type by plug-in attributes
  *
@@ -65,7 +65,7 @@ bool dvcs_search_sensor_type_for_port(INX_T type_inx, uint8_t port, uint8_t extp
  *
  * Note: Servo motors are third party motors (i.e., EV3 and NXT motors are not servo motors)
  */
-bool dvcs_search_servo_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport, uint8_t *sn );
+bool dvcs_search_servo_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn );
 
 /** Search for the sequence number for a specific tacho motor type by plug-in attributes
  *
@@ -78,7 +78,7 @@ bool dvcs_search_servo_type_for_port(INX_T type_inx, uint8_t port, uint8_t extpo
  * Note: Tacho motors are LEGO motors (i.e., EV3 and NXT motors are tacho motors)
  *
  */
-bool dvcs_search_tacho_type_for_port(INX_T type_inx, uint8_t port, uint8_t extport, uint8_t *sn );
+bool dvcs_search_tacho_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn );
 
 
 
