@@ -7,7 +7,10 @@
  *  \file  pairedtacho.S
  *  \brief  ARM-based Dual Tacho Motor (LEGO Large Servo Motor) example.
  *			Two Large Servo Motor must be attached to ports OUTPUT_B and OUTPUT_C.
- *			OUTPUT_B is the Right Motor while OUTPUT_C is the Left Motor.
+ *			OUTPUT_B is the Left Motor while OUTPUT_C is the Right Motor.
+ *			The motors will rotate for NUM_LOOPS rotations, but each motor will not start
+ *			on the next rotation until both motors have completed their respective rotation for the loop.
+ *
  *  \author  Tat-Chee Wan (tcwan@usm.my)
  *  \copyright  See the LICENSE file.
  */
