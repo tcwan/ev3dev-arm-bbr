@@ -35,6 +35,7 @@
 #define TACHO_STOP_MODE		TACHO_BRAKE				// TACHO_COAST, TACHO_BRAKE, TACHO_HOLD
 
 	.equiv  MS_TO_US_MULTIPLIER, 1000
+	.equiv	SLEEP_DURATION_10MS,   10 * MS_TO_US_MULTIPLIER
 	.equiv	SLEEP_DURATION_100MS, 100 * MS_TO_US_MULTIPLIER
 	.equiv  SLEEP_DURATION_500MS, 500 * MS_TO_US_MULTIPLIER
 	.equiv  SLEEP_DURATION_1SEC, 1000 * MS_TO_US_MULTIPLIER
@@ -287,7 +288,7 @@ wait_destpos:
 	bl		usleep
 #else
 	// Closed loop wait (Position-monitoring based)
-	ldr		r0, =SLEEP_DURATION_100MS
+	ldr		r0, =SLEEP_DURATION_10MS
 	bl		usleep							// Check ever 100 ms
 
 	mov		r0, r4							// setup left motor sequence number
