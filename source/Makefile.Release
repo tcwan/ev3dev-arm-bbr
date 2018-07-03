@@ -126,6 +126,16 @@ CXXFLAGS = $(addprefix -I, $(D_H)) -O2 -W -Wall -Wno-comment
 ASMFLAGS = $(CFLAGS)
 
 # ---------------------------------
+#   libraries
+# ---------------------------------
+EVDEVC = $(TOP)/ev3dev-c
+ARMBBR = $(TOP)/common
+
+EVDEVCLIBS = $(EVDEVC)/lib/libev3dev-c.so
+ARMBBRLIBS = $(ARMBBR)/lib/libev3dev-arm-bbr.so
+ASM_HEADERS = $(EVDEVC)/asm/*.h
+
+# ---------------------------------
 #   files lists
 # ---------------------------------
 G_H = $(wildcard $(addsuffix /*$(E_H), $(D_H)))
@@ -198,7 +208,7 @@ vpath %$(E_ASM) $(D_ASM)
 
 default: bindirs $(F_BIN)
 
-$(F_BIN): $(O) $(G_L)
+$(F_BIN): $(O) $(G_L) $(EVDEVCLIBS) $(ARMBBRLIBS)
 	$(call wrap,$(LINK),$^ -o $@ $(LIBS) $(LFLAGS))
 	$(call final,$@)
 	@echo "*** $(F_BIN) ***"
@@ -212,7 +222,7 @@ $(O_C): $(D_OBJ)/%$(E_OBJ): %$(E_C)
 $(O_CXX): $(D_OBJ)/%$(E_OBJ): %$(E_CXX)
 	$(call wrap,$(CXX),$(CXXFLAGS) -c $< -o $@)
 
-$(O_ASM): $(D_OBJ)/%$(E_OBJ): %$(E_ASM)
+$(O_ASM): $(D_OBJ)/%$(E_OBJ): %$(E_ASM) $(ASM_HEADERS)
 	$(call wrap,$(CC),$(ASMFLAGS) -c $< -o $@)
 
 # -- create 'object' and 'bin' directories
@@ -241,5 +251,19 @@ clean-binary:
 
 install:
 	$(call install)
+
+# Rules for building libraries
+
+$(EVDEVC)/lib/libev3dev-c.a:
+	cd $(TOP); $(MAKE) ev3dev-c-libs
+	
+$(EVDEVC)/lib/libev3dev-c.so:
+	cd $(TOP); $(MAKE) ev3dev-c-shared-libs
+
+$(ARMBBR)/lib/libev3dev-arm-bbr.a:
+	cd $(TOP); $(MAKE) arm-bbr-libs
+
+$(ARMBBR)/lib/libev3dev-arm-bbr.so:
+	cd $(TOP); $(MAKE) arm-bbr-shared-libs
 
 # -- EOF
