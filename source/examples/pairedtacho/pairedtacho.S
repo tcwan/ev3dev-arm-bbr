@@ -152,20 +152,11 @@ stop_righttacho:
 	bl		set_tacho_command_inx
 	pop		{pc}
 
-release_lefttacho:
+release_tachos:
 	push	{lr}
-	ldr		r0, =leftseqno
-	ldrb	r0, [r0]						// setup motor sequence number
+	ldr		r0, =motors_vec					// setup motor vector
 	mov		r1, #TACHO_COAST				// release motor
-	bl		 set_tacho_stop_action_inx
-	pop		{pc}
-
-release_righttacho:
-	push	{lr}
-	ldr		r0, =rightseqno
-	ldrb	r0, [r0]						// setup motor sequence number
-	mov		r1, #TACHO_COAST				// release motor
-	bl		 set_tacho_stop_action_inx
+	bl		multi_set_tacho_stop_action_inx
 	pop		{pc}
 
 
@@ -202,48 +193,28 @@ tacho_setup:
 	ldr		r11, [r11]						// Load count_per_rot value
 
 	// Setup target position for motor rotation (one full rotation)
-	mov		r0, r4							// setup motor sequence number
+	ldr		r0, =motors_vec					// setup motor vector
 	mov		r1, r11							// setup countperrot value
-	bl		set_tacho_position_sp			// Setup target position
-
-	mov		r0, r5							// setup motor sequence number
-	mov		r1, r11							// setup countperrot value
-	bl		set_tacho_position_sp			// Setup target position
+	bl		multi_set_tacho_position_sp			// Setup target position
 
 	// Setup Ramp/Up down duration (ms)
-	mov		r0, r4							// setup motor sequence number
+	ldr		r0, =motors_vec					// setup motor vector
 	ldr		r1, =TACHO_RAMPTIME_MS			// Ramp up duration (ms)
-	bl		set_tacho_ramp_up_sp
+	bl		multi_set_tacho_ramp_up_sp
 
-	mov		r0, r5							// setup motor sequence number
-	ldr		r1, =TACHO_RAMPTIME_MS			// Ramp up duration (ms)
-	bl		set_tacho_ramp_up_sp
-
-	mov		r0, r4							// setup motor sequence number
+	ldr		r0, =motors_vec					// setup motor vector
 	ldr		r1, =TACHO_RAMPTIME_MS			// Ramp down duration (ms)
-	bl		set_tacho_ramp_down_sp
-
-	mov		r0, r5							// setup motor sequence number
-	ldr		r1, =TACHO_RAMPTIME_MS			// Ramp down duration (ms)
-	bl		set_tacho_ramp_down_sp
+	bl		multi_set_tacho_ramp_down_sp
 
 	// Setup motor speed
-	mov		r0, r4							// setup motor sequence number
+	ldr		r0, =motors_vec					// setup motor vector
 	mov		r1, #TACHO_MAX_SPEED			// Target speed of  motor
-	bl		 set_tacho_speed_sp
-
-	mov		r0, r5							// setup motor sequence number
-	mov		r1, #TACHO_MAX_SPEED			// Target speed of  motor
-	bl		 set_tacho_speed_sp
+	bl		multi_set_tacho_speed_sp
 
 	// Setup motor stop mode
-	mov		r0, r4							// setup motor sequence number
+	ldr		r0, =motors_vec					// setup motor vector
 	mov		r1, #TACHO_STOP_MODE			// How to stop the motor
-	bl		 set_tacho_stop_action_inx
-
-	mov		r0, r5							// setup motor sequence number
-	mov		r1, #TACHO_STOP_MODE			// How to stop the motor
-	bl		set_tacho_stop_action_inx
+	bl		multi_set_tacho_stop_action_inx
 
 	mov		r6, #NUM_LOOPS					// Setup loop count
 	ldr		r7, =prevlposition				// Pointer to prevlposition
@@ -271,13 +242,9 @@ loop:
 	mov		r1, r9							// Return value pointer
 	bl		get_tacho_position				// Take original right position reading
 
-	mov		r0, r4							// setup motor sequence number
+	ldr		r0, =motors_vec					// setup motor vector
 	mov		r1, #TACHO_RUN_TO_REL_POS		// move relative to current position
-	bl		set_tacho_command_inx
-
-	mov		r0, r5							// setup motor sequence number
-	mov		r1, #TACHO_RUN_TO_REL_POS		// move relative to current position
-	bl		set_tacho_command_inx
+	bl		multi_set_tacho_command_inx
 
 wait_destpos:
 #ifdef BRUTE_FORCE_TIMING
@@ -328,9 +295,7 @@ check_both_stopped:
 	bne		loop
 
 exit:
-	bl		release_lefttacho
-	bl		release_righttacho
-
+	bl		release_tachos
 	bl		prog_exit
 	pop		{pc}
 
