@@ -15,94 +15,98 @@
 #include "devices.h"
 #include <stdio.h>
 
+#define ENABLE_INLINE
+
+#ifdef ENABLE_INLINE
+#define INLINE inline
+#else
+#define INLINE
+#endif
+
 /* Internal Routines */
 bool _is_sn_identical_and_valid(U8 port_sn, U8 type_sn) {
 	return ((port_sn == type_sn) && (port_sn != DESC_LIMIT) && (type_sn != DESC_LIMIT));
 }
 
-inline bool ev3_search_dc_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn, U8 from ) {
+INLINE bool ev3_search_dc_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn, U8 from ) {
 
-	bool retval;
-	U8 port_sn = DESC_LIMIT;
-	U8 type_sn = DESC_LIMIT;
+	bool retval = false;
+	U8 found_sn = DESC_LIMIT;
+	INX_T found_type = DC_TYPE__UNKNOWN_;
 
-	retval = ev3_search_dc(type_inx, &type_sn, from);
-	if (retval) {
-		// Found device type. Now locate the correct port
-		while (retval && !_is_sn_identical_and_valid(port_sn, type_sn)) {
-			retval = ev3_search_dc_plugged_in(port, extport, &port_sn, from);
-			from = port_sn + 1;						// Setup for next device search in case (port_sn != type_sn)
+	while ((found_type != type_inx) && (from < DESC_LIMIT)) {
+		if ( ev3_search_dc_plugged_in( port, extport, &found_sn, from )) {
+			found_type = ev3_dc_desc_type_inx(found_sn);
+			retval = (found_type == type_inx);
 		}
+		from += 1;						// Setup for next device search in case (found_type != type_inx)
 	}
 
 	if (retval) {
-		*sn = port_sn;							// Correct motor type plugged into correct (valid) port
+		*sn = found_sn;							// Correct device type plugged into correct (valid) port
 	}
 
 	return retval;
 }
 
-inline bool ev3_search_sensor_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn, U8 from ) {
+INLINE bool ev3_search_sensor_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn, U8 from ) {
 
-	bool retval;
-	U8 port_sn = DESC_LIMIT;
-	U8 type_sn = DESC_LIMIT;
+	bool retval = false;
+	U8 found_sn = DESC_LIMIT;
+	INX_T found_type = SENSOR_TYPE__UNKNOWN_;
 
-	retval = ev3_search_sensor(type_inx, &type_sn, from);
-	if (retval) {
-		// Found device type. Now locate the correct port
-		while (retval && !_is_sn_identical_and_valid(port_sn, type_sn)) {
-			retval = ev3_search_sensor_plugged_in(port, extport, &port_sn, from);
-			from = port_sn + 1;						// Setup for next device search in case (port_sn != type_sn)
+	while ((found_type != type_inx) && (from < DESC_LIMIT)) {
+		if ( ev3_search_sensor_plugged_in( port, extport, &found_sn, from )) {
+			found_type = ev3_sensor_desc_type_inx(found_sn);
+			retval = (found_type == type_inx);
 		}
+		from += 1;						// Setup for next device search in case (found_type != type_inx)
 	}
 
 	if (retval) {
-		*sn = port_sn;							// Correct motor type plugged into correct (valid) port
+		*sn = found_sn;							// Correct device type plugged into correct (valid) port
 	}
 
 	return retval;
 }
 
-inline bool ev3_search_servo_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn, U8 from ) {
+INLINE bool ev3_search_servo_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn, U8 from ) {
 
-	bool retval;
-	U8 port_sn = DESC_LIMIT;
-	U8 type_sn = DESC_LIMIT;
+	bool retval = false;
+	U8 found_sn = DESC_LIMIT;
+	INX_T found_type = SERVO_TYPE__UNKNOWN_;
 
-	retval = ev3_search_servo(type_inx, &type_sn, from);
-	if (retval) {
-		// Found device type. Now locate the correct port
-		while (retval && !_is_sn_identical_and_valid(port_sn, type_sn)) {
-			retval = ev3_search_servo_plugged_in(port, extport, &port_sn, from);
-			from = port_sn + 1;						// Setup for next device search in case (port_sn != type_sn)
+	while ((found_type != type_inx) && (from < DESC_LIMIT)) {
+		if ( ev3_search_servo_plugged_in( port, extport, &found_sn, from )) {
+			found_type = ev3_servo_desc_type_inx(found_sn);
+			retval = (found_type == type_inx);
 		}
+		from += 1;						// Setup for next device search in case (found_type != type_inx)
 	}
 
 	if (retval) {
-		*sn = port_sn;							// Correct motor type plugged into correct (valid) port
+		*sn = found_sn;							// Correct device type plugged into correct (valid) port
 	}
 
 	return retval;
 }
 
-inline bool ev3_search_tacho_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn, U8 from ) {
+INLINE bool ev3_search_tacho_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn, U8 from ) {
 
-	bool retval;
-	U8 port_sn = DESC_LIMIT;
-	U8 type_sn = DESC_LIMIT;
+	bool retval = false;
+	U8 found_sn = DESC_LIMIT;
+	INX_T found_type = TACHO_TYPE__UNKNOWN_;
 
-	retval = ev3_search_tacho(type_inx, &type_sn, from);
-	if (retval) {
-		// Found device type. Now locate the correct port
-		while (retval && !_is_sn_identical_and_valid(port_sn, type_sn)) {
-			retval = ev3_search_tacho_plugged_in(port, extport, &port_sn, from);
-			from = port_sn + 1;						// Setup for next device search in case (port_sn != type_sn)
+	while ((found_type != type_inx) && (from < DESC_LIMIT)) {
+		if ( ev3_search_tacho_plugged_in( port, extport, &found_sn, from )) {
+			found_type = ev3_tacho_desc_type_inx(found_sn);
+			retval = (found_type == type_inx);
 		}
+		from += 1;						// Setup for next device search in case (found_type != type_inx)
 	}
 
 	if (retval) {
-		*sn = port_sn;							// Correct motor type plugged into correct (valid) port
+		*sn = found_sn;							// Correct device type plugged into correct (valid) port
 	}
 
 	return retval;
