@@ -35,12 +35,13 @@
 	.data
 	.align
 
-// Note: .asciz doesn't always null terminate the string??
-printstr:		.asciz "Tacho Motor (LEGO Large Servo Motor) Test\n"
+printstr:		.asciz "Tacho Motor Test\n(LEGO Large Servo Motor)\n"
 waittachostr:	.asciz "Waiting for Tacho Motor...\n"
-foundtachostr:	.asciz "Found Tacho Motor at index: \0"
-loopstr:		.asciz "Remaining loops: \0"
+foundtachostr:	.asciz "Found Tacho Motor at index: "
+loopstr:		.asciz "Remaining loops: "
 
+// Need to align the following data, otherwise the string termination is not guaranteed (output routine bug?)
+	.align
 countperrot:	.word	0					// Tacho count per rotation (360 deg)
 prevposition:	.word	0					// Previous position of the tacho motor
 currposition:	.word	0					// Current position of the tacho motor
