@@ -43,15 +43,16 @@
 	.data
 	.align
 
-// Note: .asciz doesn't always null terminate the string??
-printstr:		.asciz "Dual Paired Tacho Motor (LEGO Large Servo Motor) Test\n"
-waitltachostr:	.asciz 		"Waiting (Left Tacho on Port B)... \n"
-waitrtachostr:	.asciz 		"Waiting (Right Tacho on Port C)...\n"
-foundlefttachostr:	.asciz 	"Tacho: Left (\0"
-foundrighttachostr:	.asciz 	"), Right (\0"
-foundtachoendstr:   .asciz  ")\0"
-loopstr:		.asciz "Remaining loops: \0"
+printstr:		.asciz "Paired Tacho Motor Test\n(LEGO Large Servo Motors)\n"
+waitltachostr:	.asciz 		"Waiting (Left Tacho Port B) \n"
+waitrtachostr:	.asciz 		"Waiting (Right Tacho Port C)\n"
+foundlefttachostr:	.asciz 	"Tacho: Left ("
+foundrighttachostr:	.asciz 	"), Right ("
+foundtachoendstr:   .asciz  ")   "
+loopstr:		.asciz "Remaining loops: "
 
+// Need to align the following data, otherwise the string termination is not guaranteed (output routine bug?)
+	.align
 countperrot:	.word	0					// Tacho count per rotation (360 deg)		// Assume identical for both motoros
 prevrposition:	.word	0					// Previous position of the right tacho motor
 prevlposition:	.word	0					// Previous position of the left tacho motor
@@ -112,9 +113,9 @@ find_r_motor:
 
 found_motors:
 	ldr		r0, =foundlefttachostr
-	bl		prog_content2
+	bl		prog_content1
 
-	ldr		r0, =leftseqno
+	ldr		r4, =leftseqno
 	ldrb	r4, [r4]						// read seqno U8 from memory into r4
 	mov		r0, r4							// setup left motor sequence number
 	bl		prog_display_integer
@@ -122,7 +123,7 @@ found_motors:
 	ldr		r0, =foundrighttachostr
 	bl		prog_display_string
 
-	ldr		r0, =rightseqno
+	ldr		r5, =rightseqno
 	ldrb	r5, [r5]						// read seqno U8 from memory into r5
 	mov		r0, r5							// setup right motor sequence number
 	bl		prog_display_integer
@@ -137,7 +138,6 @@ stop_lefttacho:
 	ldrb	r0, [r0]						// setup motor sequence number
 	mov		r1, #TACHO_STOP					// stop motor
 	bl		set_tacho_command_inx
-	sub		r12, r12, #1					// one motor stopped
 	pop		{pc}
 
 stop_righttacho:
@@ -146,7 +146,22 @@ stop_righttacho:
 	ldrb	r0, [r0]						// setup motor sequence number
 	mov		r1, #TACHO_STOP					// stop motor
 	bl		set_tacho_command_inx
-	sub		r12, r12, #1					// one motor stopped
+	pop		{pc}
+
+release_lefttacho:
+	push	{lr}
+	ldr		r0, =leftseqno
+	ldrb	r0, [r0]						// setup motor sequence number
+	mov		r1, #TACHO_COAST				// release motor
+	bl		 set_tacho_stop_action_inx
+	pop		{pc}
+
+release_righttacho:
+	push	{lr}
+	ldr		r0, =rightseqno
+	ldrb	r0, [r0]						// setup motor sequence number
+	mov		r1, #TACHO_COAST				// release motor
+	bl		 set_tacho_stop_action_inx
 	pop		{pc}
 
 
@@ -224,7 +239,7 @@ tacho_setup:
 
 	mov		r0, r5							// setup motor sequence number
 	mov		r1, #TACHO_STOP_MODE			// How to stop the motor
-	bl		 set_tacho_stop_action_inx
+	bl		set_tacho_stop_action_inx
 
 	mov		r6, #NUM_LOOPS					// Setup loop count
 	ldr		r7, =prevlposition				// Pointer to prevlposition
@@ -287,6 +302,7 @@ check_left_tacho:
 	cmp		r0, r2							// (currposition - targetposition) < 0?
 	blt		check_right_tacho				// have not reached the target, check other motor
 	bl		stop_lefttacho					// Don't let one motor get ahead of the other
+	sub		r12, r12, #1					// one motor stopped
 
 check_right_tacho:
 	ldr		r0, [r10]						// Curr right Position
@@ -295,6 +311,8 @@ check_right_tacho:
 	cmp		r0, r2							// (currposition - targetposition) < 0?
 	blt		check_both_stopped				// have not reached the target, check other motor
 	bl		stop_righttacho				// Don't let one motor get ahead of the other
+	sub		r12, r12, #1					// one motor stopped
+
 
 check_both_stopped:
 	cmp		r12, #0							// have both motors stopped?
@@ -302,14 +320,12 @@ check_both_stopped:
 
 #endif
 
-	subs	r5, r5, #1						// Continue until done
+	subs	r6, r6, #1						// Continue until done
 	bne		loop
 
 exit:
-#if 0
-	bl		stop_left_tacho
-	bl		stop_right_tacho				// just in case
-#endif
+	bl		release_lefttacho
+	bl		release_righttacho
 
 	bl		prog_exit
 	pop		{pc}
