@@ -275,7 +275,7 @@ bool dvcs_config_servo_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn
 		ev3_servo_init();											// Populate servo descriptors
 		retval = ev3_search_servo_plugged_in( port, extport, sn, 0 );
 		if (retval) {
-			retval = (get_servo_type_inx(*sn) == type_inx);			// use get_xxx_type_inx() to access actual sysfs path
+			retval = (ev3_servo_desc_type_inx(*sn) == type_inx);	// We need the descriptor to be valid for this to work
 		}
 	}
 
