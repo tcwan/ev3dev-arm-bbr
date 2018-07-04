@@ -99,6 +99,7 @@ find_l_motor:
 	bl		dvcs_search_tacho_type_for_port	// Search for TACHO_MOTOR_TYPE attached to L_MOTOR_PORT, return found flag
 	cmp		r0, #FALSE
 	bne		find_r_motor
+	bl		ev3_tacho_init					// Not found, reinitialize ev3_tacho desc
 	bl		wait_500ms
 	b		find_l_motor					// Delay 500 ms, try again
 
@@ -112,6 +113,7 @@ find_r_motor:
 	bl		dvcs_search_tacho_type_for_port	// Search for TACHO_MOTOR_TYPE attached to R_MOTOR_PORT, return found flag
 	cmp		r0, #FALSE
 	bne		found_motors
+	bl		ev3_tacho_init					// Not found, reinitialize ev3_tacho desc
 	bl		wait_500ms
 	b		find_r_motor					// Delay 500 ms, try again
 
