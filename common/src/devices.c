@@ -166,7 +166,7 @@ bool dvcs_search_sensor_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *s
 
 	while ((found_type != type_inx) && (from < DESC_LIMIT)) {
 		if ( ev3_search_sensor_plugged_in( port, extport, &found_sn, from )) {
-			found_type = get_sensor_type_inx(found_sn);			// use get_xxx_type_inx() to access actual sysfs path
+			found_type = ev3_sensor_desc_type_inx(found_sn);	// We need the descriptor to be valid for this to work
 			retval = (found_type == type_inx);
 		}
 		from += 1;												// Setup for next device search in case (found_type != type_inx)
@@ -188,7 +188,7 @@ bool dvcs_search_tacho_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn
 
 	while ((found_type != type_inx) && (from < DESC_LIMIT)) {
 		if ( ev3_search_tacho_plugged_in( port, extport, &found_sn, from )) {
-			found_type = get_tacho_type_inx(found_sn);			// use get_xxx_type_inx() to access actual sysfs path
+			found_type = ev3_tacho_desc_type_inx(found_sn);		// We need the descriptor to be valid for this to work
 			retval = (found_type == type_inx);
 		}
 		from += 1;												// Setup for next device search in case (found_type != type_inx)
@@ -217,7 +217,7 @@ bool dvcs_config_dc_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn ) 
 		ev3_dc_init();												// Populate dc descriptors
 		retval = ev3_search_dc_plugged_in( port, extport, sn, 0 );
 		if (retval) {
-			retval = (get_dc_type_inx(*sn) == type_inx);			// use get_xxx_type_inx() to access actual sysfs path
+			retval = (ev3_dc_desc_type_inx(*sn) == type_inx);		// We need the descriptor to be valid for this to work
 		}
 	}
 
@@ -246,7 +246,7 @@ bool dvcs_config_sensor_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *s
 		ev3_sensor_init();											// Populate sensor descriptors
 		retval = ev3_search_sensor_plugged_in( port, extport, sn, 0 );
 		if (retval) {
-			retval = (get_sensor_type_inx(*sn) == type_inx);		// use get_xxx_type_inx() to access actual sysfs path
+			retval = (ev3_sensor_desc_type_inx(*sn) == type_inx);	// We need the descriptor to be valid for this to work
 		}
 	}
 
