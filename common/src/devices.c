@@ -15,14 +15,6 @@
 #include "devices.h"
 #include <stdio.h>
 
-#define ENABLE_INLINE
-
-#ifdef ENABLE_INLINE
-#define INLINE inline
-#else
-#define INLINE
-#endif
-
 /* Internal Routines */
 bool _is_sn_identical_and_valid(U8 port_sn, U8 type_sn) {
 	return ((port_sn == type_sn) && (port_sn != DESC_LIMIT) && (type_sn != DESC_LIMIT));
@@ -117,8 +109,9 @@ INX_T ev3_sensor_port_mode_inx(INX_T type_inx ) {
 
 #if 0
 // Not valid unless it has been setup using dvcs_config_dc_type_for_port() beforehand
-INLINE bool ev3_search_dc_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn, U8 from ) {
+bool dvcs_search_dc_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn ) {
 
+	U8 from = 0;
 	bool retval = false;
 	U8 found_sn = DESC_LIMIT;
 	INX_T found_type = DC_TYPE__UNKNOWN_;
@@ -139,8 +132,9 @@ INLINE bool ev3_search_dc_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 
 }
 
 // Not valid unless it has been setup using dvcs_config_servo_type_for_port() beforehand
-INLINE bool ev3_search_servo_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn, U8 from ) {
+bool dvcs_search_servo_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn ) {
 
+	U8 from = 0;
 	bool retval = false;
 	U8 found_sn = DESC_LIMIT;
 	INX_T found_type = SERVO_TYPE__UNKNOWN_;
@@ -162,8 +156,10 @@ INLINE bool ev3_search_servo_type_for_port(INX_T type_inx, U8 port, U8 extport, 
 #endif
 
 
-INLINE bool ev3_search_sensor_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn, U8 from ) {
+/* Public Routines */
+bool dvcs_search_sensor_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn ) {
 
+	U8 from = 0;
 	bool retval = false;
 	U8 found_sn = DESC_LIMIT;
 	INX_T found_type = SENSOR_TYPE__UNKNOWN_;
@@ -183,8 +179,9 @@ INLINE bool ev3_search_sensor_type_for_port(INX_T type_inx, U8 port, U8 extport,
 	return retval;
 }
 
-INLINE bool ev3_search_tacho_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn, U8 from ) {
+bool dvcs_search_tacho_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn) {
 
+	U8 from = 0;
 	bool retval = false;
 	U8 found_sn = DESC_LIMIT;
 	INX_T found_type = TACHO_TYPE__UNKNOWN_;
@@ -202,17 +199,6 @@ INLINE bool ev3_search_tacho_type_for_port(INX_T type_inx, U8 port, U8 extport, 
 	}
 
 	return retval;
-}
-
-/* Public Routines */
-bool dvcs_search_sensor_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn ) {
-
-	return ev3_search_sensor_type_for_port(type_inx, port, extport, sn, 0);			// Wrapper for actual function
-}
-
-bool dvcs_search_tacho_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn) {
-
-	return ev3_search_tacho_type_for_port(type_inx, port, extport, sn, 0);			// Wrapper for actual function
 
 }
 
@@ -228,6 +214,7 @@ bool dvcs_config_dc_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn ) 
 	set_port_mode_inx( sn_port, port_mode );
 	retval = (get_port_mode_inx(sn_port) == port_mode);
 	if (retval) {
+		ev3_dc_init();												// Populate dc descriptors
 		retval = ev3_search_dc_plugged_in( port, extport, sn, 0 );
 		if (retval) {
 			retval = (get_dc_type_inx(*sn) == type_inx);			// use get_xxx_type_inx() to access actual sysfs path
@@ -256,6 +243,7 @@ bool dvcs_config_sensor_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *s
 
 	if (retval) {
 		set_port_set_device(sn_port, sensor_type);
+		ev3_sensor_init();											// Populate sensor descriptors
 		retval = ev3_search_sensor_plugged_in( port, extport, sn, 0 );
 		if (retval) {
 			retval = (get_sensor_type_inx(*sn) == type_inx);		// use get_xxx_type_inx() to access actual sysfs path
@@ -284,6 +272,7 @@ bool dvcs_config_servo_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn
 	set_port_mode_inx( sn_port, port_mode );
 	retval = (get_port_mode_inx(sn_port) == port_mode);
 	if (retval) {
+		ev3_servo_init();											// Populate servo descriptors
 		retval = ev3_search_servo_plugged_in( port, extport, sn, 0 );
 		if (retval) {
 			retval = (get_servo_type_inx(*sn) == type_inx);			// use get_xxx_type_inx() to access actual sysfs path
