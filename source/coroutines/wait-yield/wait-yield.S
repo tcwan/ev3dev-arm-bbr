@@ -4,7 +4,7 @@
     |_|__  \_\/  __)_) |_|_/  |_|__  \_\/   /(@)- \
                                                ((())))
  *//**
- *  \file  produce-consume.S
+ *  \file  wait-yield.S
  *  \brief  produce consume behavior using coroutines.
  *  \author  Tat-Chee Wan (tcwan@usm.my)
  *  \copyright  See the LICENSE file.
