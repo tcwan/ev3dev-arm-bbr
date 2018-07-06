@@ -102,7 +102,6 @@ co_\name:	.word	NULL
 	.global	coro_\name
 coro_\name:
 	push	{r0, lr}					// Keep co_p it for CORO_END use
-	ldr		r0, =co_\name
 	ldr		r0, [r0]					// retrieve *co_p
 	teq		r0, #NULL					// is context pointer (*co_p) valid?
 	beq		1f							// Skip if *co_p is NULL
@@ -144,7 +143,7 @@ coro_\name:
 
 /**
  *  \brief Waiting for the condition is true.
- *  \param cont_eval_function Continue evaluation function (returns TRUE to continue, or FALSE to wait).
+ *  \param cont_eval_function Continue evaluation function (returns non-zero/TRUE to continue, or FALSE to wait).
  *  \return coroutine status
  *
  *  R0 is retrieved from the stack (preserved by CORO_START)
@@ -155,7 +154,7 @@ coro_\name:
 	.macro	CORO_WAIT cont_eval_function
 
 4:
-	bl		\cont_eval_function			// call cont_eval_function to determine whether to continue (TRUE) or wait (FALSE)
+	bl		\cont_eval_function			// call cont_eval_function to determine whether to continue (non-zero/TRUE) or wait (FALSE)
 	teq		r0, #FALSE
 	bne		5f							// Continue is TRUE, so skip waiting
 	// Continue is FALSE
