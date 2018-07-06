@@ -5,7 +5,7 @@
                                                ((())))
  *//**
  *  \file   ev3dev-arm-defines.h
- *  \brief  ARM-BBR defines and macros to support ASM function prototypes
+ *  \brief  ARM-BBR meta include file to support ASM function prototypes
  *  \author  See AUTHORS for a full list of the developers
  *  \copyright  See the LICENSE file.
  */
@@ -15,14 +15,9 @@
 
 #ifdef __ASSEMBLY__
 
-#define NULL   0x0	    /* Stick the definition here instead of making types.h messy */
-#define FALSE   0
-#define TRUE    ~FALSE
-
-#define TYPEDEF @
-#define FUNCDEF @
-
 #include "enum-asm.h"		// Enum macros
+#include "arm-stddef.h"		// Standard definitions for NULL, TRUE, FALSE
+#include "arm-coroutine.h"	// Coroutines support in ARM Assembly
 #include "interwork.h"		// Interworking macros
 
 #endif

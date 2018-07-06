@@ -54,7 +54,7 @@
 
 #ifdef __ASSEMBLY__
 
-#include "ev3dev-arm-defines.h"
+#include "arm-stddef.h"
 
 ENUM_0	CO_READY
 ENUM_N	CO_WAIT

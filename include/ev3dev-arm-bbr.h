@@ -15,9 +15,11 @@
 //
 #pragma once
 
-#include "ev3dev-arm-defines.h"
-
 #ifdef __ASSEMBLY__
+
+#define __ARM_ARCH_V5T__					// To enable ARMv5T Interwork macros
+
+#include "ev3dev-arm-defines.h"
 
 /* common/include/alerts.h */
 	.extern alrt_hello
