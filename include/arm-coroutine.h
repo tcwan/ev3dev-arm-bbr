@@ -14,6 +14,8 @@
  *  Adapted from "coroutines.h" written by Vitaly Kravtsov (in4lio@gmail.com)
  *  (Based on Simon Tatham "Coroutines in C").
  *
+ *  Note: This version is not interworking compliant
+ *
  *  \code
  *  	.data
  *  	.align
@@ -55,6 +57,7 @@
 #ifdef __ASSEMBLY__
 
 #include "arm-stddef.h"
+#include "enum-asm.h"
 
 ENUM_0	CO_READY
 ENUM_N	CO_WAIT
@@ -93,6 +96,7 @@ co_\name:	.word	NULL
 	.global	coro_\name
 coro_\name:
 	push	{r0, lr}					// Keep co_p it for CORO_END use
+	ldr		r0, =co_\name
 	ldr		r0, [r0]					// retrieve *co_p
 	teq		r0, #NULL					// is context pointer (*co_p) valid?
 	beq		1f							// Skip if *co_p is NULL
@@ -145,7 +149,7 @@ coro_\name:
 	.macro	CORO_WAIT cont_eval_function
 
 4:
-	blx		\cont_eval_function			// call cont_eval_function to determine whether to continue (TRUE) or wait (FALSE)
+	bl		\cont_eval_function			// call cont_eval_function to determine whether to continue (TRUE) or wait (FALSE)
 	teq		r0, #FALSE
 	bne		5f							// Continue is TRUE, so skip waiting
 	// Continue is FALSE
@@ -216,7 +220,7 @@ coro_\name:
 
 	.macro	CORO_WAIT_CORO	name
 6:
-	blx		coro_\name
+	bl		coro_\name
 	cmp		r0, #CO_END
 	beq		7f							// continue if coroutine ended, else wait
 	// Coroutine not ended
@@ -241,6 +245,7 @@ coro_\name:
 sem_\name:	.byte	\val
 
 	.text
+	.align
 semcheck_\name:
 	ldr		r0, =sem_\name
 	ldrb	r0, [r0]						// Get semaphore value
