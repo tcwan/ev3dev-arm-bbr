@@ -118,7 +118,7 @@ coro_\name:
  */
 	.macro	CORO_END
 	pop		{r0, lr}					// Restore co_p
-	ldr		r1, =2f						// FIXME: Is this a valid macro expansion?
+	ldr		r1, =2f						// Load exit Status instruction address
 	str		r1, [r0]
 2:
 	mov		r0, #CO_END					// return status
@@ -134,7 +134,7 @@ coro_\name:
  */
 	.macro	CORO_YIELD
 	pop		{r0, lr}					// Restore co_p
-	ldr		r1, =3f						// FIXME: Is this a valid macro expansion?
+	ldr		r1, =3f						// Load coroutine resume address
 	str		r1, [r0]
 	mov		r0, #CO_YIELD				// return status
 	bx		lr							// return to caller
@@ -159,7 +159,7 @@ coro_\name:
 	bne		5f							// Continue is TRUE, so skip waiting
 	// Continue is FALSE
 	pop		{r0, lr}					// Restore co_p
-	ldr		r1, =4b						// FIXME: Is this a valid macro expansion?
+	ldr		r1, =4b						// Load coroutine resume address to continue waiting
 	str		r1, [r0]
 	mov		r0, #CO_WAIT				// return status
 	bx		lr							// return to caller
@@ -230,7 +230,7 @@ coro_\name:
 	beq		7f							// continue if coroutine ended, else wait
 	// Coroutine not ended
 	pop		{r0, lr}					// Restore co_p
-	ldr		r1, =6b						// FIXME: Is this a valid macro expansion?
+	ldr		r1, =6b						// Load coroutine resume address to continue waiting
 	str		r1, [r0]
 	mov		r0, #CO_WAIT				// return status
 	bx		lr							// return to caller
