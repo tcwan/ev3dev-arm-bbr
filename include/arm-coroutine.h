@@ -14,11 +14,12 @@
  *  Adapted from "coroutines.h" written by Vitaly Kravtsov (in4lio@gmail.com)
  *  (Based on Simon Tatham "Coroutines in C").
  *
- *  Note: This version is not interworking compliant
+ *  Note: This version is non-reentrant due to use of CORO_LOCAL variable in the data section
+ *  WARNING: This version is not interworking compliant
  *
  *  \code
  *  	.data
- *  	.align
+ *  	.align 2
  *  CORO_LOCAL b, word, 0
  *
  *  CORO_CONTEXT A
@@ -46,7 +47,7 @@
  *  \endcode
  *
  *  Any local variables which need to be persistent across a coroutine switching
- *  must be declared static (CORO_LOCAL).
+ *  must be declared in the data section (CORO_LOCAL).
  *
  *  \{
  */
@@ -66,10 +67,12 @@ ENUM_N	CO_END
 ENUM_N	CO_SKIP
 
 /**
- *  \brief Define the coroutine context (a pointer to label).
+ *  \brief Define the coroutine context (a pointer to label) and initialize it to NULL.
  *  \param name Coroutine name.
  */
 	.macro	CORO_CONTEXT name
+	.data
+	.align 2
 co_\name:	.word	NULL
 	.endm
 
@@ -80,6 +83,7 @@ co_\name:	.word	NULL
  *  \param val initialization value.
  */
 	.macro	CORO_LOCAL	name, type, val
+	.data
 \name:	.\type	\val
 	.endm
 
@@ -93,6 +97,8 @@ co_\name:	.word	NULL
  *  Note: The coroutine name is global in scope
  */
 	.macro	CORO_START name
+	.text
+	.align 4
 	.global	coro_\name
 coro_\name:
 	push	{r0, lr}					// Keep co_p it for CORO_END use
@@ -156,7 +162,7 @@ coro_\name:
 	pop		{r0, lr}					// Restore co_p
 	ldr		r1, =4b						// FIXME: Is this a valid macro expansion?
 	str		r1, [r0]
-	mov		r0, #CO_WAIT					// return status
+	mov		r0, #CO_WAIT				// return status
 	bx		lr							// return to caller
 5:
 	.endm
@@ -227,7 +233,7 @@ coro_\name:
 	pop		{r0, lr}					// Restore co_p
 	ldr		r1, =6b						// FIXME: Is this a valid macro expansion?
 	str		r1, [r0]
-	mov		r0, #CO_WAIT					// return status
+	mov		r0, #CO_WAIT				// return status
 	bx		lr							// return to caller
 7:
 	.endm
@@ -242,14 +248,15 @@ coro_\name:
  */
 	.macro	SEMAPHORE_INIT name, val
 	.data
-sem_\name:	.byte	\val
+	.align 2
+sem_\name:	.word	\val
 
 	.text
-	.align
+	.align 4
 semcheck_\name:
 	ldr		r0, =sem_\name
-	ldrb	r0, [r0]						// Get semaphore value
-	bx		lr								// return to caller
+	ldr		r0, [r0]					// Get semaphore value
+	bx		lr							// return to caller
 	.endm
 
 /**
@@ -262,9 +269,9 @@ semcheck_\name:
 	.macro	SEMAPHORE_ACQUIRE name
 	CORO_WAIT semcheck_\name
 	ldr		r0, =sem_\name
-	ldrb	r1, [r0]
+	ldr		r1, [r0]
 	sub		r1, r1, #1
-	strb	r1, [r0]
+	str		r1, [r0]
 	.endm
 
 /**
@@ -275,9 +282,9 @@ semcheck_\name:
  */
 	.macro SEMAPHORE_RELEASE name
 	ldr		r0, =sem_\name
-	ldrb	r1, [r0]
+	ldr		r1, [r0]
 	add		r1, r1, #1
-	strb	r1, [r0]
+	str		r1, [r0]
 	.endm
 
 
