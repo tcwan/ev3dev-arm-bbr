@@ -76,7 +76,9 @@ loop:
 	// Start consumer first to check semaphore correctness
 	CORO_CALL consumer
 	CORO_CALL producer
-
+#if 0
+	CORO_CALL consumer			// Calling producer or consumer with different frequency can still work
+#endif
 	subs	r4, r4, #1
 	bne		loop
 exit:
