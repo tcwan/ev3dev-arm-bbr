@@ -24,7 +24,7 @@
 
 #ifdef __ARM_ARCH_V5T__
 	.macro arm_dcall arm_routine
-	BLX     \arm_routine
+	BL     \arm_routine        @ Linker will take care of ARM-ARM / ARM-THUMB direct calls (BLX will always switch state)
 	.endm
 #else
 	.macro arm_dcall arm_routine
@@ -68,7 +68,7 @@
  */
 #ifdef __ARM_ARCH_V5T__
 	.macro thumb_dcall thumb_routine
-	BLX     \thumb_routine
+	BL     \thumb_routine      @ Linker will take care of ARM-ARM / ARM-THUMB direct calls (BLX will always switch state)
 	.endm
 #else
 	.macro thumb_dcall thumb_routine
