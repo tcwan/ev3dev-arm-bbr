@@ -57,7 +57,7 @@ loopstr:		.asciz "Remaining loops: "
 
 // Need to align the following data, otherwise the string termination is not guaranteed (output routine bug?)
 	.align
-countperrot:	.word	0					// Tacho count per rotation (360 deg)		// Assume identical for both motoros
+countperrot:	.word	0					// Tacho count per rotation (360 deg)		// Assume identical for both motors
 prevrposition:	.word	0					// Previous position of the right tacho motor
 prevlposition:	.word	0					// Previous position of the left tacho motor
 currrposition:	.word	0					// Current position of the right tacho motor
@@ -224,7 +224,6 @@ tacho_setup:
 	ldr		r9, =prevrposition				// Pointer to prevrposition
 	ldr		r10, =currrposition				// Pointer to currrposition
 
-// FIXME: Need to support dual motors
 loop:
 	ldr		r0, =loopstr
 	bl		prog_content2
@@ -283,7 +282,7 @@ check_right_tacho:
 	add		r2, r1, r11						// targetposition = prevposition + countperrot
 	cmp		r0, r2							// (currposition - targetposition) < 0?
 	blt		check_both_stopped				// have not reached the target, check other motor
-	bl		stop_righttacho				// Don't let one motor get ahead of the other
+	bl		stop_righttacho					// Don't let one motor get ahead of the other
 	sub		r12, r12, #1					// one motor stopped
 
 
