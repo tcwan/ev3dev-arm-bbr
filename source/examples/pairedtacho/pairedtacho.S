@@ -82,12 +82,13 @@ wait_500ms:
 
 init_tacho:
 	push	{lr}
+detect_tacho:
 	bl		ev3_tacho_init					// Returns number of motors detected
 	cmp		r0, #2
 	bge		find_l_motor
 	ldr		r0, =SLEEP_DURATION_1SEC
 	bl		usleep
-	b		init_tacho						// Loop until tacho motors detected
+	b		detect_tacho					// Loop until tacho motors detected
 
 find_l_motor:
 	ldr		r0, =waitltachostr
