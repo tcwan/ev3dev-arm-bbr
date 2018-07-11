@@ -309,8 +309,6 @@
                 				
                 <buildCommand>make</buildCommand>
                 				
-                <buildArguments/>
-                				
                 <buildTarget>source/examples/helloarm</buildTarget>
                 				
                 <stopOnError>true</stopOnError>
@@ -324,8 +322,6 @@
             <target name="source/armskel" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
                 				
                 <buildCommand>make</buildCommand>
-                				
-                <buildArguments/>
                 				
                 <buildTarget>source/armskel</buildTarget>
                 				
@@ -341,8 +337,6 @@
                 				
                 <buildCommand>make</buildCommand>
                 				
-                <buildArguments/>
-                				
                 <buildTarget>source/examples</buildTarget>
                 				
                 <stopOnError>true</stopOnError>
@@ -356,6 +350,8 @@
             <target name="libs" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
                 				
                 <buildCommand>make</buildCommand>
+                				
+                <buildArguments/>
                 				
                 <buildTarget>libs</buildTarget>
                 				
@@ -371,6 +367,8 @@
                 				
                 <buildCommand>make</buildCommand>
                 				
+                <buildArguments/>
+                				
                 <buildTarget>clean-libs</buildTarget>
                 				
                 <stopOnError>true</stopOnError>
@@ -384,6 +382,8 @@
             <target name="arm-bbr-libs" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
                 				
                 <buildCommand>make</buildCommand>
+                				
+                <buildArguments/>
                 				
                 <buildTarget>arm-bbr-libs</buildTarget>
                 				
@@ -399,6 +399,8 @@
                 				
                 <buildCommand>make</buildCommand>
                 				
+                <buildArguments/>
+                				
                 <buildTarget>clean-arm-bbr-libs</buildTarget>
                 				
                 <stopOnError>true</stopOnError>
@@ -412,8 +414,6 @@
             <target name="shared-libs" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
                 				
                 <buildCommand>make</buildCommand>
-                				
-                <buildArguments/>
                 				
                 <buildTarget>shared-libs</buildTarget>
                 				
@@ -429,8 +429,6 @@
                 				
                 <buildCommand>make</buildCommand>
                 				
-                <buildArguments/>
-                				
                 <buildTarget>source/examples/pairedtacho</buildTarget>
                 				
                 <stopOnError>true</stopOnError>
@@ -444,6 +442,8 @@
             <target name="arm-bbr-shared-libs" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
                 				
                 <buildCommand>make</buildCommand>
+                				
+                <buildArguments/>
                 				
                 <buildTarget>arm-bbr-shared-libs</buildTarget>
                 				
@@ -459,6 +459,8 @@
                 				
                 <buildCommand>make</buildCommand>
                 				
+                <buildArguments/>
+                				
                 <buildTarget>source/examples/tachotest</buildTarget>
                 				
                 <stopOnError>true</stopOnError>
@@ -472,8 +474,6 @@
             <target name="source/coroutines/wait-yield" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
                 				
                 <buildCommand>make</buildCommand>
-                				
-                <buildArguments/>
                 				
                 <buildTarget>source/coroutines/wait-yield</buildTarget>
                 				
@@ -489,9 +489,23 @@
                 				
                 <buildCommand>make</buildCommand>
                 				
+                <buildTarget>source/coroutines/semaphore</buildTarget>
+                				
+                <stopOnError>true</stopOnError>
+                				
+                <useDefaultCommand>true</useDefaultCommand>
+                				
+                <runAllBuilders>true</runAllBuilders>
+                			
+            </target>
+            			
+            <target name="source/coroutines/corotacho" path="" targetID="org.eclipse.cdt.build.MakeTargetBuilder">
+                				
+                <buildCommand>make</buildCommand>
+                				
                 <buildArguments/>
                 				
-                <buildTarget>source/coroutines/semaphore</buildTarget>
+                <buildTarget>source/coroutines/corotacho</buildTarget>
                 				
                 <stopOnError>true</stopOnError>
                 				

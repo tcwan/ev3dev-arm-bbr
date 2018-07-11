@@ -59,10 +59,6 @@ loopstr:		.asciz "Remaining loops: "
 // Need to align the following data, otherwise the string termination is not guaranteed (output routine bug?)
 	.align
 countperrot:	.word	0					// Tacho count per rotation (360 deg)		// Assume identical for both motors
-prevrposition:	.word	0					// Previous position of the right tacho motor
-prevlposition:	.word	0					// Previous position of the left tacho motor
-currrposition:	.word	0					// Current position of the right tacho motor
-currlposition:	.word	0					// Current position of the left tacho motor
 
 motors_vec:									// Vector of motor seqnos needed by multi_set_tacho_XXX()
 rightseqno:		.byte	0					// Sequence number for right motor
@@ -72,6 +68,8 @@ endmotors:		.byte	DESC_LIMIT			// Vector Terminator
 	.equiv		motors_vec_len, . - motors_vec
 
 /* Coroutine related variables */
+
+	.align 2
 
 	CORO_LOCAL		left_count, word, 0
 	CORO_LOCAL		right_count, word, 0
@@ -95,12 +93,13 @@ wait_500ms:
 
 init_tacho:
 	push	{lr}
+detect_tacho:
 	bl		ev3_tacho_init					// Returns number of motors detected
 	cmp		r0, #2
 	bge		find_l_motor
 	ldr		r0, =SLEEP_DURATION_1SEC
 	bl		usleep
-	b		init_tacho						// Loop until tacho motors detected
+	b		detect_tacho					// Loop until tacho motors detected
 
 find_l_motor:
 	ldr		r0, =waitltachostr
@@ -185,7 +184,7 @@ has_left_tacho_reached_target:
 
 	ldr		r0, [r4]						// Retrieve current position
 	ldr		r1, =left_tacho_targetpos
-	ldr		r1, [r4]						// Target left Position
+	ldr		r1, [r1]						// Target left Position
 	cmp		r0, r1							// (currposition - targetposition) < 0?
 	movge	r0, #TRUE
 	movlt	r0, #FALSE
@@ -201,45 +200,58 @@ has_right_tacho_reached_target:
 
 	ldr		r0, [r4]						// Retrieve current position
 	ldr		r1, =right_tacho_targetpos
-	ldr		r1, [r4]						// Target right Position
+	ldr		r1, [r1]						// Target right Position
 	cmp		r0, r1							// (currposition - targetposition) < 0?
 	movge	r0, #TRUE
 	movlt	r0, #FALSE
 	pop		{r4, pc}
 
+/** advance_tacho_target_position
+ *
+ * Parameters:
+ *    r0: pointer to tacho target position
+ */
+advance_tacho_target_position:
+	ldr		r1, [r0]						// old target position
+	ldr		r2, =countperrot
+	ldr		r2, [r2]						// retrieve countperrot
+	add		r1, r1, r2, asr #ROTATION_SCALING	// new target position = scaled countperrot + old target position
+	str		r1, [r0]						// store new target position
+	bx		lr
 
-/** start_tacho
+/** init_tacho_target_position
  *
  * Parameters:
  *    r0: motor sequence number
  *    r1: pointer to tacho current position
  *    r2: pointer to tacho target position
  */
-
-start_tacho:
-	// FIXME: This algorithm suffers from tacho drift since we're taking current position at the beginning of each scaled roation.
-	// We should take it once at the start of the 360 deg rotation and update target based on that.
-	push	{r4, r5, r6, lr}
-	mov		r4, r0							// Keep motor sequence number
-	mov		r5, r1							// Keep pointer to current position
-	mov		r6, r2							// Keep pointer to target position
+init_tacho_target_position:
+	push	{r4, r5, lr}
+	mov		r4, r1							// Keep pointer to current position
+	mov		r5, r2							// Keep pointer to target position
 	bl		get_tacho_position				// Take current position reading
 
-	// Update target position
-	ldr		r0, [r5]						// current position
-	ldr		r1, =countperrot
-	ldr		r1, [r1]						// retrieve countperrot
-	add		r0, r0, r1, asr #ROTATION_SCALING	// target position = scaled countperrot + current position
-	str		r0, [r6]						// store target position
+	// Set target position
+	ldr		r0, [r4]
+	str		r0, [r5]						// Store current position to target position
+	pop		{r4, r5, pc}
 
+/** start_tacho
+ *
+ * Parameters:
+ *    r0: motor sequence number
+ */
+
+start_tacho:
 	// start motor
-	mov		r0, r4							// Retrieve motor sequence number
+	push	{lr}
 	mov		r1, #TACHO_RUN_TO_REL_POS		// move relative to current position using position_sp value
 	bl		set_tacho_command_inx
-	pop		{r4, r5, r6, pc}
+	pop		{pc}
 
 /**
- * Coroutines
+ * Coroutine: left_tacho
  */
 
 	CORO_START	left_tacho
@@ -248,12 +260,20 @@ start_tacho:
 	mov		r0, #(1 << ROTATION_SCALING)	// determine number of times to move the motor based on scaled rotation angle (subset of 360 deg)
 	str		r0, [r1]
 
-1:
+left_inittarget:
 	ldr		r0, =leftseqno
 	ldrb	r0, [r0]						// Retrieve actual sequence number value
 	ldr		r1, =left_tacho_currpos
 	ldr		r2, =left_tacho_targetpos
-	bl		start_tacho						// Record current tacho position, and start motor
+	bl		init_tacho_target_position		// Record target tacho position
+
+left_advance:
+	ldr		r0, =left_tacho_targetpos
+	bl		advance_tacho_target_position	// Set new target
+
+	ldr		r0, =leftseqno
+	ldrb	r0, [r0]						// Retrieve actual sequence number value
+	bl		start_tacho						// Start motor
 
 	CORO_WAIT	has_left_tacho_reached_target
 
@@ -261,8 +281,12 @@ start_tacho:
 	ldr		r0, [r1]
 	subs	r0, r0, #1
 	str		r0, [r1]
-	bne		1b								// Not done with 360 deg rotation yet
+	bne		left_advance					// Not done with 360 deg rotation yet
 	CORO_END
+
+/**
+ * Coroutine: right_tacho
+ */
 
 	CORO_START	right_tacho
 
@@ -270,12 +294,20 @@ start_tacho:
 	mov		r0, #(1 << ROTATION_SCALING)	// determine number of times to move the motor based on scaled rotation angle (subset of 360 deg)
 	str		r0, [r1]
 
-2:
-	ldr		r0, =leftseqno
+right_inittarget:
+	ldr		r0, =rightseqno
 	ldrb	r0, [r0]						// Retrieve actual sequence number value
 	ldr		r1, =right_tacho_currpos
 	ldr		r2, =right_tacho_targetpos
-	bl		start_tacho						// Record current tacho position, and start motor
+	bl		init_tacho_target_position		// Record target tacho position
+
+right_advance:
+	ldr		r0, =right_tacho_targetpos
+	bl		advance_tacho_target_position	// Set new target
+
+	ldr		r0, =rightseqno
+	ldrb	r0, [r0]						// Retrieve actual sequence number value
+	bl		start_tacho						// Start motor
 
 	CORO_WAIT	has_right_tacho_reached_target
 
@@ -283,7 +315,7 @@ start_tacho:
 	ldr		r0, [r1]
 	subs	r0, r0, #1
 	str		r0, [r1]
-	bne		2b								// Not done with 360 deg rotation yet
+	bne		right_advance					// Not done with 360 deg rotation yet
 	CORO_END
 
 
@@ -294,12 +326,7 @@ start_tacho:
  *        R4: left seqno value
  *        R5: right seqno value
  *        R6: Loop Counter value
- *        R7: Prev. left Position Pointer
- *        R8: Curr. left Position Pointer
- *        R9: Prev. right Position Pointer
- *        R10: Curr. right Position Pointer
- *        R11: countperrot value
- *		  R12: No of running motors
+ *		  R7: No of running motors
  **/
 	.global main
 main:
@@ -344,11 +371,6 @@ tacho_setup:
 	bl		multi_set_tacho_stop_action_inx
 
 	mov		r6, #NUM_LOOPS					// Setup loop count
-	mov		r6, r6, lsl #ROTATION_SCALING	// Scaled loop count based on ROTATION_SCALING divisor
-	ldr		r7, =prevlposition				// Pointer to prevlposition
-	ldr		r8, =currlposition				// Pointer to currlposition
-	ldr		r9, =prevrposition				// Pointer to prevrposition
-	ldr		r10, =currrposition				// Pointer to currrposition
 
 loop:
 	ldr		r0, =loopstr
@@ -358,65 +380,20 @@ loop:
 	mov		r1, #2							// Right aligned 2 digit counter
 	bl		prog_display_integer_aligned
 
+	// Reset Coroutines for tacho_loop
+	CORO_CONTEXT_INIT left_tacho
+	CORO_CONTEXT_INIT right_tacho
+
+	mov		r7, #2
 tacho_loop:
 	CORO_CALL	left_tacho					// Complete one 360 deg rotation
+	cmp			r0, #CO_END
+	subeq		r7, r7, #1
 	CORO_CALL	right_tacho					// Complete one 360 deg rotation
-
-
-
-#if 0
-	// Setup number of running motors
-	mov		r12, #2							// 2 motors are running
-
-	mov		r0, r4							// setup left motor sequence number
-	mov		r1, r7							// Return value pointer
-	bl		get_tacho_position				// Take original left position reading
-
-	mov		r0, r5							// setup right motor sequence number
-	mov		r1, r9							// Return value pointer
-	bl		get_tacho_position				// Take original right position reading
-
-	ldr		r0, =motors_vec					// setup motor vector
-	mov		r1, #TACHO_RUN_TO_REL_POS		// move relative to current position
-	bl		multi_set_tacho_command_inx
-
-wait_destpos:
-	// Closed loop wait (Position-monitoring based)
-	ldr		r0, =SLEEP_DURATION_10MS
-	bl		usleep							// Check ever 100 ms
-
-	mov		r0, r4							// setup left motor sequence number
-	mov		r1, r8							// Return value pointer
-	bl		get_tacho_position				// Take new left position reading
-
-	mov		r0, r5							// setup right motor sequence number
-	mov		r1, r10							// Return value pointer
-	bl		get_tacho_position				// Take new right position reading
-
-check_left_tacho:
-	ldr		r0, [r8]						// Curr left Position
-	ldr		r1, [r7]						// Prev left Position
-	add		r2, r1, r11						// targetposition = prevposition + countperrot
-	cmp		r0, r2							// (currposition - targetposition) < 0?
-	blt		check_right_tacho				// have not reached the target, check other motor
-	bl		stop_lefttacho					// Don't let one motor get ahead of the other
-	sub		r12, r12, #1					// one motor stopped
-
-check_right_tacho:
-	ldr		r0, [r10]						// Curr right Position
-	ldr		r1, [r9]						// Prev right Position
-	add		r2, r1, r11						// targetposition = prevposition + countperrot
-	cmp		r0, r2							// (currposition - targetposition) < 0?
-	blt		check_both_stopped				// have not reached the target, check other motor
-	bl		stop_righttacho				// Don't let one motor get ahead of the other
-	sub		r12, r12, #1					// one motor stopped
-
-
-check_both_stopped:
-	cmp		r12, #0							// have both motors stopped?
-	bgt		wait_destpos					// At least one motor is still running
-
-#endif
+	cmp			r0, #CO_END
+	subeq		r7, r7, #1
+	cmp			r7, #0
+	bgt			tacho_loop
 
 	subs	r6, r6, #1						// Continue until done
 	bne		loop
