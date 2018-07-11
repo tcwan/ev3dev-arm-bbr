@@ -16,7 +16,7 @@
  *
  *  ARM Assembly coroutines cannot modify any registers r4-r14 within an execution block
  *  without preserving them and restoring them. An execution block consist of all instructions
- *  executed between any CORO_* macros.
+ *  executed between any coroutine definition macros (CORO_START, CORO_WAIT, CORO_YIELD, CORO_END).
  *
  *  Note: This version is non-reentrant due to use of CORO_LOCAL variable in the data section
  *  WARNING: This version is not interworking compliant
@@ -81,10 +81,27 @@ co_\name:	.word	NULL
 	.endm
 
 /**
+ *  \brief Initialize the coroutine context (a pointer to label) to NULL
+ *  \param name Coroutine name.
+ *
+ *  R0 is modified in this macro (not preserved per AAPCS)
+ *  R1 is modified in this macro (not preserved per AAPCS)
+ *
+ */
+	.macro	CORO_CONTEXT_INIT name
+	ldr		r1, =co_\name
+	mov		r0, #NULL
+	str		r0, [r1]
+	.endm
+
+/**
  *  \brief Declare the local variable that preserves a value across a coroutine switching.
  *  \param name local variable name.
  *  \param type data type (byte, word, etc.)
  *  \param val initialization value.
+ *
+ *  Note: The alignment must be set properly before using this macro, otherwise it is not guaranteed to be type-aligned
+ *
  */
 	.macro	CORO_LOCAL	name, type, val
 	.data
@@ -121,10 +138,10 @@ coro_\name:
  *  R1 is modified in this macro (not preserved per AAPCS)
  */
 	.macro	CORO_END
-	pop		{r0, lr}					// Restore co_p
-	ldr		r1, =2f						// Load exit Status instruction address
-	str		r1, [r0]
 2:
+	pop		{r0, lr}					// Restore co_p
+	ldr		r1, =2b						// Load exit Status instruction address
+	str		r1, [r0]
 	mov		r0, #CO_END					// return status
 	bx		lr							// return to caller
 	.endm
