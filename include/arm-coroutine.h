@@ -14,6 +14,10 @@
  *  Adapted from "coroutines.h" written by Vitaly Kravtsov (in4lio@gmail.com)
  *  (Based on Simon Tatham "Coroutines in C").
  *
+ *  ARM Assembly coroutines cannot modify any registers r4-r14 within an execution block
+ *  without preserving them and restoring them. An execution block consist of all instructions
+ *  executed between any CORO_* macros.
+ *
  *  Note: This version is non-reentrant due to use of CORO_LOCAL variable in the data section
  *  WARNING: This version is not interworking compliant
  *
@@ -207,6 +211,7 @@ coro_\name:
  *  Note: This macro is not intended for public use
  */
 
+
 	.macro	CORO_ALIVE
 	cmp		r0, #CO_END
 	movlos	r0, #TRUE
@@ -217,24 +222,16 @@ coro_\name:
  *  \brief Start and waiting for the child coroutine until it is completed.
  *  \param name Child coroutine.
  *
- *  R0 is retrieved from the stack (preserved by CORO_START)
+ *  R0 is modified in this macro (not preserved per AAPCS)
  *  R1 is modified in this macro (not preserved per AAPCS)
  *
- *  Note: This version differs from the C code by not updating *co_p unless we have to wait
  */
 
 	.macro	CORO_WAIT_CORO	name
 6:
-	bl		coro_\name
+	CORO_CALL \name
 	cmp		r0, #CO_END
-	beq		7f							// continue if coroutine ended, else wait
-	// Coroutine not ended
-	pop		{r0, lr}					// Restore co_p
-	ldr		r1, =6b						// Load coroutine resume address to continue waiting
-	str		r1, [r0]
-	mov		r0, #CO_WAIT				// return status
-	bx		lr							// return to caller
-7:
+	bne		6b							// wait if coroutine not ended
 	.endm
 
 /**
