@@ -23,15 +23,6 @@
 #define TACHO_RAMPTIME_MS	100						// 100 ms to ramp up/down to speed
 #define TACHO_STOP_MODE		TACHO_BRAKE				// TACHO_COAST, TACHO_BRAKE, TACHO_HOLD
 
-	.equiv  MS_TO_US_MULTIPLIER, 1000
-	.equiv	SLEEP_DURATION_100MS, 100 * MS_TO_US_MULTIPLIER
-	.equiv  SLEEP_DURATION_500MS, 500 * MS_TO_US_MULTIPLIER
-	.equiv  SLEEP_DURATION_1SEC, 1000 * MS_TO_US_MULTIPLIER
-	.equiv  SLEEP_DURATION_2SEC, 2000 * MS_TO_US_MULTIPLIER
-	.equiv	NUM_LOOPS, 10
-
-	.extern usleep        /* C Library usleep() */
-
 	.data
 	.align
 

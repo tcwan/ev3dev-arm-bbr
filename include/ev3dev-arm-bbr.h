@@ -21,6 +21,20 @@
 
 #include "ev3dev-arm-defines.h"
 
+/* C Library usleep constants */
+	.equiv  MS_TO_US_MULTIPLIER, 1000
+	.equiv	SLEEP_DURATION_10MS,   10 * MS_TO_US_MULTIPLIER
+	.equiv	SLEEP_DURATION_20MS,   20 * MS_TO_US_MULTIPLIER
+	.equiv	SLEEP_DURATION_50MS,   50 * MS_TO_US_MULTIPLIER
+	.equiv	SLEEP_DURATION_100MS, 100 * MS_TO_US_MULTIPLIER
+	.equiv	SLEEP_DURATION_200MS, 200 * MS_TO_US_MULTIPLIER
+	.equiv  SLEEP_DURATION_500MS, 500 * MS_TO_US_MULTIPLIER
+	.equiv  SLEEP_DURATION_1SEC, 1000 * MS_TO_US_MULTIPLIER
+	.equiv  SLEEP_DURATION_2SEC, 2000 * MS_TO_US_MULTIPLIER
+
+	.extern usleep        /* C Library usleep() */
+
+
 /* common/include/alerts.h */
 	.extern alrt_hello
 	.extern alrt_goodbye

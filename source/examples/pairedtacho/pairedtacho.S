@@ -22,8 +22,6 @@
 #include "ev3_tacho.h"
 #include "ev3dev-arm-bbr.h"
 
-#undef  BRUTE_FORCE_TIMING
-
 #define L_MOTOR_PORT      OUTPUT_B
 #define L_MOTOR_EXT_PORT  EXT_PORT__NONE_
 #define R_MOTOR_PORT      OUTPUT_C
@@ -35,15 +33,7 @@
 #define TACHO_STOP_MODE		TACHO_BRAKE				// TACHO_COAST, TACHO_BRAKE, TACHO_HOLD
 #define TACHO_RUN_MODE		TACHO_RUN_FOREVER		// TACHO_RUN_TO_REL_POS, TACHO_RUN_FOREVER
 
-	.equiv  MS_TO_US_MULTIPLIER, 1000
-	.equiv	SLEEP_DURATION_10MS,   10 * MS_TO_US_MULTIPLIER
-	.equiv	SLEEP_DURATION_100MS, 100 * MS_TO_US_MULTIPLIER
-	.equiv  SLEEP_DURATION_500MS, 500 * MS_TO_US_MULTIPLIER
-	.equiv  SLEEP_DURATION_1SEC, 1000 * MS_TO_US_MULTIPLIER
-	.equiv  SLEEP_DURATION_2SEC, 2000 * MS_TO_US_MULTIPLIER
 	.equiv	NUM_LOOPS, 10
-
-	.extern usleep        /* C Library usleep() */
 
 	.data
 	.align
@@ -154,8 +144,11 @@ stop_righttacho:
 	bl		set_tacho_command_inx
 	pop		{pc}
 
-release_tachos:
+stop_and_release_tachos:
 	push	{lr}
+	ldr		r0, =motors_vec					// setup motor vector
+	mov		r1, #TACHO_STOP				// set run mode
+	bl		multi_set_tacho_command_inx
 	ldr		r0, =motors_vec					// setup motor vector
 	mov		r1, #TACHO_COAST				// release motor
 	bl		multi_set_tacho_stop_action_inx
@@ -190,7 +183,7 @@ tacho_setup:
 	mov		r0, r4							// setup motor sequence number
 	mov		r1, r10							// Pointer to variable
 	bl		get_tacho_count_per_rot			// retrieve count per rotation
-	ldr		r10, [r10]						// Load count_per_rot value
+	ldr		r10, [r10]						// Load countperrot value
 
 	// Setup target position for motor rotation (one full rotation)
 	ldr		r0, =motors_vec					// setup motor vector
@@ -287,10 +280,7 @@ check_both_stopped:
 	bne		loop
 
 exit:
-	ldr		r0, =motors_vec					// setup motor vector
-	mov		r1, #TACHO_STOP				// set run mode
-	bl		multi_set_tacho_command_inx
-	bl		release_tachos
+	bl		stop_and_release_tachos
 	bl		prog_exit
 	pop		{pc}
 

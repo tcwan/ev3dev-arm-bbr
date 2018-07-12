@@ -22,8 +22,6 @@
 #include "ev3_tacho.h"
 #include "ev3dev-arm-bbr.h"
 
-#undef  BRUTE_FORCE_TIMING
-
 #define L_MOTOR_PORT      OUTPUT_B
 #define L_MOTOR_EXT_PORT  EXT_PORT__NONE_
 #define R_MOTOR_PORT      OUTPUT_C
@@ -35,16 +33,8 @@
 #define TACHO_STOP_MODE		TACHO_BRAKE				// TACHO_COAST, TACHO_BRAKE, TACHO_HOLD
 #define TACHO_RUN_MODE		TACHO_RUN_FOREVER		// TACHO_RUN_TO_REL_POS, TACHO_RUN_FOREVER
 
-	.equiv  MS_TO_US_MULTIPLIER, 1000
-	.equiv	SLEEP_DURATION_10MS,   10 * MS_TO_US_MULTIPLIER
-	.equiv	SLEEP_DURATION_100MS, 100 * MS_TO_US_MULTIPLIER
-	.equiv  SLEEP_DURATION_500MS, 500 * MS_TO_US_MULTIPLIER
-	.equiv  SLEEP_DURATION_1SEC, 1000 * MS_TO_US_MULTIPLIER
-	.equiv  SLEEP_DURATION_2SEC, 2000 * MS_TO_US_MULTIPLIER
 	.equiv	NUM_LOOPS, 10
 	.equiv	ROTATION_SCALING, 2						// Scaling factor in number of right bit shifts for countperrot (ASR 2 == div by 4 [90 deg])
-
-	.extern usleep        /* C Library usleep() */
 
 	.data
 	.align
@@ -167,8 +157,11 @@ stop_righttacho:
 	bl		set_tacho_command_inx
 	pop		{pc}
 
-release_tachos:
+stop_and_release_tachos:
 	push	{lr}
+	ldr		r0, =motors_vec					// setup motor vector
+	mov		r1, #TACHO_STOP				// set run mode
+	bl		multi_set_tacho_command_inx
 	ldr		r0, =motors_vec					// setup motor vector
 	mov		r1, #TACHO_COAST				// release motor
 	bl		multi_set_tacho_stop_action_inx
@@ -332,6 +325,7 @@ right_advance:
  *        R5: right seqno value
  *        R6: Loop Counter value
  *		  R7: No of running motors
+ *		  R8: countperrot value
  **/
 	.global main
 main:
@@ -344,16 +338,16 @@ main:
 	bl		init_tacho						// r4 and r5 setup with left and right tacho seqnos
 
 tacho_setup:
-	ldr		r11, =countperrot				// Pointer to variable
+	ldr		r8, =countperrot				// Pointer to variable
 
 	mov		r0, r4							// setup motor sequence number
-	mov		r1, r11							// Pointer to variable
+	mov		r1, r8
 	bl		get_tacho_count_per_rot			// retrieve count per rotation
-	ldr		r11, [r11]						// Load count_per_rot value
+	ldr		r8, [r8]						// Load countperrot value
 
 	// Setup target position for motor rotation (one full rotation)
 	ldr		r0, =motors_vec					// setup motor vector
-	mov		r1, r11, asr #ROTATION_SCALING	// setup scaled countperrot value
+	mov		r1, r8, asr #ROTATION_SCALING	// setup scaled countperrot value
 	bl		multi_set_tacho_position_sp		// Setup target position
 
 	// Setup Ramp/Up down duration (ms)
@@ -389,6 +383,7 @@ loop:
 	CORO_CONTEXT_INIT left_tacho
 	CORO_CONTEXT_INIT right_tacho
 
+	// Setup number of running motors
 	mov		r7, #2
 tacho_loop:
 	CORO_CALL	left_tacho					// Complete one 360 deg rotation
@@ -404,10 +399,7 @@ tacho_loop:
 	bne		loop
 
 exit:
-	ldr		r0, =motors_vec					// setup motor vector
-	mov		r1, #TACHO_STOP				// set run mode
-	bl		multi_set_tacho_command_inx
-	bl		release_tachos
+	bl		stop_and_release_tachos
 	bl		prog_exit
 	pop		{pc}
 
