@@ -33,6 +33,7 @@
 #define TACHO_MAX_SPEED 	200						// Be careful not to set too large a number
 #define TACHO_RAMPTIME_MS	100						// 100 ms to ramp up/down to speed
 #define TACHO_STOP_MODE		TACHO_BRAKE				// TACHO_COAST, TACHO_BRAKE, TACHO_HOLD
+#define TACHO_RUN_MODE		TACHO_RUN_FOREVER		// TACHO_RUN_TO_REL_POS, TACHO_RUN_FOREVER
 
 	.equiv  MS_TO_US_MULTIPLIER, 1000
 	.equiv	SLEEP_DURATION_10MS,   10 * MS_TO_US_MULTIPLIER
@@ -246,7 +247,7 @@ init_tacho_target_position:
 start_tacho:
 	// start motor
 	push	{lr}
-	mov		r1, #TACHO_RUN_TO_REL_POS		// move relative to current position using position_sp value
+	mov		r1, #TACHO_RUN_MODE				// configure run mode
 	bl		set_tacho_command_inx
 	pop		{pc}
 
@@ -277,7 +278,7 @@ left_advance:
 
 	CORO_WAIT	has_left_tacho_reached_target
 
-	//bl		stop_lefttacho
+	bl		stop_lefttacho					// Don't let one motor get ahead of the other
 
 	ldr		r1, =left_count
 	ldr		r0, [r1]
@@ -313,7 +314,7 @@ right_advance:
 
 	CORO_WAIT	has_right_tacho_reached_target
 
-	//bl		stop_righttacho
+	bl		stop_righttacho					// Don't let one motor get ahead of the other
 
 	ldr		r1, =right_count
 	ldr		r0, [r1]
@@ -403,6 +404,9 @@ tacho_loop:
 	bne		loop
 
 exit:
+	ldr		r0, =motors_vec					// setup motor vector
+	mov		r1, #TACHO_STOP				// set run mode
+	bl		multi_set_tacho_command_inx
 	bl		release_tachos
 	bl		prog_exit
 	pop		{pc}
