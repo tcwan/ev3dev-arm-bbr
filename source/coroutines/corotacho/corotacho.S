@@ -277,6 +277,8 @@ left_advance:
 
 	CORO_WAIT	has_left_tacho_reached_target
 
+	//bl		stop_lefttacho
+
 	ldr		r1, =left_count
 	ldr		r0, [r1]
 	subs	r0, r0, #1
@@ -310,6 +312,8 @@ right_advance:
 	bl		start_tacho						// Start motor
 
 	CORO_WAIT	has_right_tacho_reached_target
+
+	//bl		stop_righttacho
 
 	ldr		r1, =right_count
 	ldr		r0, [r1]
