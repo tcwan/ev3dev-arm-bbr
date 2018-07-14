@@ -213,24 +213,6 @@ advance_tacho_target_position:
 	str		r1, [r0]						// store new target position
 	bx		lr
 
-/** init_tacho_target_position
- *
- * Parameters:
- *    r0: motor sequence number
- *    r1: pointer to tacho current position
- *    r2: pointer to tacho target position
- */
-init_tacho_target_position:
-	push	{r4, r5, lr}
-	mov		r4, r1							// Keep pointer to current position
-	mov		r5, r2							// Keep pointer to target position
-	bl		get_tacho_position				// Take current position reading
-
-	// Set target position
-	ldr		r0, [r4]
-	str		r0, [r5]						// Store current position to target position
-	pop		{r4, r5, pc}
-
 /** start_tacho
  *
  * Parameters:
@@ -253,13 +235,6 @@ start_tacho:
 	ldr		r1, =left_count
 	mov		r0, #(1 << ROTATION_SCALING)	// determine number of times to move the motor based on scaled rotation angle (subset of 360 deg)
 	str		r0, [r1]
-
-left_inittarget:
-	ldr		r0, =leftseqno
-	ldrb	r0, [r0]						// Retrieve actual sequence number value
-	ldr		r1, =left_tacho_currpos
-	ldr		r2, =left_tacho_targetpos
-	bl		init_tacho_target_position		// Record target tacho position
 
 left_advance:
 	ldr		r0, =left_tacho_targetpos
@@ -289,13 +264,6 @@ left_advance:
 	ldr		r1, =right_count
 	mov		r0, #(1 << ROTATION_SCALING)	// determine number of times to move the motor based on scaled rotation angle (subset of 360 deg)
 	str		r0, [r1]
-
-right_inittarget:
-	ldr		r0, =rightseqno
-	ldrb	r0, [r0]						// Retrieve actual sequence number value
-	ldr		r1, =right_tacho_currpos
-	ldr		r2, =right_tacho_targetpos
-	bl		init_tacho_target_position		// Record target tacho position
 
 right_advance:
 	ldr		r0, =right_tacho_targetpos
@@ -368,6 +336,16 @@ tacho_setup:
 	ldr		r0, =motors_vec					// setup motor vector
 	mov		r1, #TACHO_STOP_MODE			// How to stop the motor
 	bl		multi_set_tacho_stop_action_inx
+
+left_inittarget:
+	mov		r0, r4							// setup left motor sequence number
+	ldr		r1, =left_tacho_targetpos
+	bl		get_tacho_position				// Record initial target tacho position
+
+right_inittarget:
+	mov		r0, r5							// setup right motor sequence number
+	ldr		r1, =right_tacho_targetpos
+	bl		get_tacho_position				// Record initial target tacho position
 
 	mov		r6, #NUM_LOOPS					// Setup loop count
 
