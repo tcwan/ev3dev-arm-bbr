@@ -121,8 +121,8 @@ LFLAGS := $(LFLAGS) -Wl,-Map,$(D_MAP)/$(TARGET)$(E_MAP)
 endif
 
 # -- compiler flags
-CFLAGS = $(addprefix -I, $(D_H)) -march=armv5t -O2 -std=gnu99 -W -Wall -Wno-comment
-CXXFLAGS = $(addprefix -I, $(D_H)) -march=armv5t -O2 -W -Wall -Wno-comment
+CFLAGS = $(addprefix -I, $(D_H)) -march=armv5te -O2 -std=gnu99 -W -Wall -Wno-comment
+CXXFLAGS = $(addprefix -I, $(D_H)) -march=armv5te -O2 -W -Wall -Wno-comment
 ASMFLAGS = $(CFLAGS)
 
 # ---------------------------------
