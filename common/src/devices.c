@@ -11,9 +11,13 @@
  */
 
 #include <stdlib.h>
+#include <unistd.h>
 #include "ev3dev-arm-ctypes.h"
 #include "devices.h"
 #include <stdio.h>
+
+#define MS_TO_US_MULTIPLIER  1000
+#define DEVICE_SETTLING_TIME (500 * MS_TO_US_MULTIPLIER)
 
 /* Internal Routines */
 bool _is_sn_identical_and_valid(U8 port_sn, U8 type_sn) {
@@ -212,6 +216,7 @@ bool dvcs_config_dc_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn ) 
 
 	sn_port = ev3_search_port( port, extport );
 	set_port_mode_inx( sn_port, port_mode );
+	usleep(DEVICE_SETTLING_TIME);
 	retval = (get_port_mode_inx(sn_port) == port_mode);
 	if (retval) {
 		ev3_dc_init();												// Populate dc descriptors
@@ -239,10 +244,12 @@ bool dvcs_config_sensor_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *s
 
 	sn_port = ev3_search_port( port, extport );
 	set_port_mode_inx( sn_port, port_mode );
+	usleep(DEVICE_SETTLING_TIME);
 	retval = (get_port_mode_inx(sn_port) == port_mode);
 
 	if (retval) {
 		set_port_set_device(sn_port, sensor_type);
+		usleep(DEVICE_SETTLING_TIME);
 		ev3_sensor_init();											// Populate sensor descriptors
 		retval = ev3_search_sensor_plugged_in( port, extport, sn, 0 );
 		if (retval) {
@@ -270,6 +277,7 @@ bool dvcs_config_servo_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn
 
 	sn_port = ev3_search_port( port, extport );
 	set_port_mode_inx( sn_port, port_mode );
+	usleep(DEVICE_SETTLING_TIME);
 	retval = (get_port_mode_inx(sn_port) == port_mode);
 	if (retval) {
 		ev3_servo_init();											// Populate servo descriptors
