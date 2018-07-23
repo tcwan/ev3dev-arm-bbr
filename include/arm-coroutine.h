@@ -22,14 +22,14 @@
  *  WARNING: This version is not interworking compliant
  *
  *  \code
- *  	.data
- *  	.align 2
+ *      .data
+ *      .align 2
  *  CORO_LOCAL b, word, 0
  *
  *  CORO_CONTEXT A
  *  CORO_CONTEXT B
  *
- *  	.text
+ *      .text
  *
  *  CORO_START A
  *      // ...
@@ -42,11 +42,11 @@
  *  CORO_END
  *
  * main:
- * 		// ...
- * 		CORO_CALL A 
- * 		CORO_CALL B
- * 		// exit condition test
- * 		bne main
+ *      // ...
+ *      CORO_CALL A 
+ *      CORO_CALL B
+ *      // exit condition test
+ *      bne main
  *
  *  \endcode
  *
@@ -64,21 +64,21 @@
 #include "arm-stddef.h"
 #include "enum-asm.h"
 
-ENUM_0	CO_READY
-ENUM_N	CO_WAIT
-ENUM_N	CO_YIELD
-ENUM_N	CO_END
-ENUM_N	CO_SKIP
+ENUM_0  CO_READY
+ENUM_N  CO_WAIT
+ENUM_N  CO_YIELD
+ENUM_N  CO_END
+ENUM_N  CO_SKIP
 
 /**
  *  \brief Define the coroutine context (a pointer to label) and initialize it to NULL.
  *  \param name Coroutine name.
  */
-	.macro	CORO_CONTEXT name
-	.data
-	.align 2
-co_\name:	.word	NULL
-	.endm
+    .macro  CORO_CONTEXT name
+    .data
+    .align 2
+co_\name:   .word   NULL
+    .endm
 
 /**
  *  \brief Initialize the coroutine context (a pointer to label) to NULL
@@ -88,11 +88,11 @@ co_\name:	.word	NULL
  *  R1 is modified in this macro (not preserved per AAPCS)
  *
  */
-	.macro	CORO_CONTEXT_INIT name
-	ldr		r1, =co_\name
-	mov		r0, #NULL
-	str		r0, [r1]
-	.endm
+    .macro  CORO_CONTEXT_INIT name
+    ldr     r1, =co_\name
+    mov     r0, #NULL
+    str     r0, [r1]
+    .endm
 
 /**
  *  \brief Declare the local variable that preserves a value across a coroutine switching.
@@ -100,13 +100,14 @@ co_\name:	.word	NULL
  *  \param type data type (byte, word, etc.)
  *  \param val initialization value.
  *
- *  Note: The alignment must be set properly before using this macro, otherwise it is not guaranteed to be type-aligned
+ *  Note: The alignment must be set properly before using this macro, 
+ *        otherwise it is not guaranteed to be type-aligned
  *
  */
-	.macro	CORO_LOCAL	name, type, val
-	.data
-\name:	.\type	\val
-	.endm
+    .macro  CORO_LOCAL  name, type, val
+    .data
+\name:  .\type  \val
+    .endm
 
 /**
  *  \brief Define the coroutine.
@@ -117,18 +118,18 @@ co_\name:	.word	NULL
  *
  *  Note: The coroutine name is global in scope
  */
-	.macro	CORO_START name
-	.text
-	.align 4
-	.global	coro_\name
+    .macro  CORO_START name
+    .text
+    .align 4
+    .global coro_\name
 coro_\name:
-	push	{r0, lr}					// Keep co_p it for CORO_END use
-	ldr		r0, [r0]					// retrieve *co_p
-	teq		r0, #NULL					// is context pointer (*co_p) valid?
-	beq		1f							// Skip if *co_p is NULL
-	bx		r0							// branch to current context
+    push    {r0, lr}                    // Keep co_p it for CORO_END use
+    ldr     r0, [r0]                    // retrieve *co_p
+    teq     r0, #NULL                   // is context pointer (*co_p) valid?
+    beq     1f                          // Skip if *co_p is NULL
+    bx      r0                          // branch to current context
 1:
-	.endm
+    .endm
 
 /**
  *  \brief The coroutine end.
@@ -137,14 +138,14 @@ coro_\name:
  *  R0 is retrieved from the stack (preserved by CORO_START)
  *  R1 is modified in this macro (not preserved per AAPCS)
  */
-	.macro	CORO_END
+    .macro  CORO_END
 2:
-	pop		{r0, lr}					// Restore co_p
-	ldr		r1, =2b						// Load exit Status instruction address
-	str		r1, [r0]
-	mov		r0, #CO_END					// return status
-	bx		lr							// return to caller
-	.endm
+    pop     {r0, lr}                    // Restore co_p
+    ldr     r1, =2b                     // Load exit Status instruction address
+    str     r1, [r0]
+    mov     r0, #CO_END                 // return status
+    bx      lr                          // return to caller
+    .endm
 
 /**
  *  \brief Switching to the next coroutine.
@@ -153,18 +154,19 @@ coro_\name:
  *  R0 is retrieved from the stack (preserved by CORO_START)
  *  R1 is modified in this macro (not preserved per AAPCS)
  */
-	.macro	CORO_YIELD
-	pop		{r0, lr}					// Restore co_p
-	ldr		r1, =3f						// Load coroutine resume address
-	str		r1, [r0]
-	mov		r0, #CO_YIELD				// return status
-	bx		lr							// return to caller
+    .macro  CORO_YIELD
+    pop     {r0, lr}                    // Restore co_p
+    ldr     r1, =3f                     // Load coroutine resume address
+    str     r1, [r0]
+    mov     r0, #CO_YIELD               // return status
+    bx      lr                          // return to caller
 3:
-	.endm
+    .endm
 
 /**
  *  \brief Waiting for the condition is true.
- *  \param cont_eval_function Continue evaluation function (returns non-zero/TRUE to continue, or FALSE to wait).
+ *  \param cont_eval_function Continue evaluation function 
+ *         (returns non-zero/TRUE to continue, or FALSE to wait).
  *  \return coroutine status
  *
  *  R0 is retrieved from the stack (preserved by CORO_START)
@@ -172,20 +174,21 @@ coro_\name:
  *
  *  Note: This version differs from the C code by not updating *co_p unless we have to wait
  */
-	.macro	CORO_WAIT cont_eval_function
+    .macro  CORO_WAIT cont_eval_function
 
 4:
-	bl		\cont_eval_function			// call cont_eval_function to determine whether to continue (non-zero/TRUE) or wait (FALSE)
-	teq		r0, #FALSE
-	bne		5f							// Continue is TRUE, so skip waiting
-	// Continue is FALSE
-	pop		{r0, lr}					// Restore co_p
-	ldr		r1, =4b						// Load coroutine resume address to continue waiting
-	str		r1, [r0]
-	mov		r0, #CO_WAIT				// return status
-	bx		lr							// return to caller
+    bl      \cont_eval_function         // call cont_eval_function to determine whether 
+                                        // to continue (non-zero/TRUE) or wait (FALSE)
+    teq     r0, #FALSE
+    bne     5f                          // Continue is TRUE, so skip waiting
+    // Continue is FALSE
+    pop     {r0, lr}                    // Restore co_p
+    ldr     r1, =4b                     // Load coroutine resume address to continue waiting
+    str     r1, [r0]
+    mov     r0, #CO_WAIT                // return status
+    bx      lr                          // return to caller
 5:
-	.endm
+    .endm
 
 /**
  *  \brief Restart the coroutine.
@@ -195,28 +198,28 @@ coro_\name:
  *  R1 is modified in this macro (not preserved per AAPCS)
  */
 
-	.macro	CORO_RESTART
-	pop		{r0, lr}					// Restore co_p
-	mov		r1, #NULL					// Set pointer to NULL
-	str		r1, [r0]
-	mov		r0, #CO_YIELD				// return status
-	bx		lr							// return to caller
-	.endm
+    .macro  CORO_RESTART
+    pop     {r0, lr}                    // Restore co_p
+    mov     r1, #NULL                   // Set pointer to NULL
+    str     r1, [r0]
+    mov     r0, #CO_YIELD               // return status
+    bx      lr                          // return to caller
+    .endm
 
 /**
  *  \brief Quit the coroutine.
  */
-#define CORO_QUIT	CORO_END
+#define CORO_QUIT   CORO_END
 
 
 /**
  *  \brief Call the coroutine.
  *  \param name Coroutine name.
  */
-	.macro	CORO_CALL name
-	ldr		r0, =co_\name				// address of context pointer
-	bl		coro_\name
-	.endm
+    .macro  CORO_CALL name
+    ldr     r0, =co_\name               // address of context pointer
+    bl      coro_\name
+    .endm
 
 /**
  *  \brief Checking the coroutine is not completed.
@@ -229,11 +232,11 @@ coro_\name:
  */
 
 
-	.macro	CORO_ALIVE
-	cmp		r0, #CO_END
-	movlos	r0, #TRUE
-	movhss	r0, #FALSE
-	.endm
+    .macro  CORO_ALIVE
+    cmp     r0, #CO_END
+    movlos  r0, #TRUE
+    movhss  r0, #FALSE
+    .endm
 
 /**
  *  \brief Start and waiting for the child coroutine until it is completed.
@@ -244,12 +247,12 @@ coro_\name:
  *
  */
 
-	.macro	CORO_WAIT_CORO	name
+    .macro  CORO_WAIT_CORO  name
 6:
-	CORO_CALL \name
-	cmp		r0, #CO_END
-	bne		6b							// wait if coroutine not ended
-	.endm
+    CORO_CALL \name
+    cmp     r0, #CO_END
+    bne     6b                          // wait if coroutine not ended
+    .endm
 
 /**
  *  \brief Initialize the semaphore.
@@ -259,18 +262,18 @@ coro_\name:
  *  Note: We insert a semaphore check routine definition here as well
  *
  */
-	.macro	SEMAPHORE_INIT name, val
-	.data
-	.align 2
-sem_\name:	.word	\val
+    .macro  SEMAPHORE_INIT name, val
+    .data
+    .align 2
+sem_\name:  .word   \val
 
-	.text
-	.align 4
+    .text
+    .align 4
 semcheck_\name:
-	ldr		r0, =sem_\name
-	ldr		r0, [r0]					// Get semaphore value
-	bx		lr							// return to caller
-	.endm
+    ldr     r0, =sem_\name
+    ldr     r0, [r0]                    // Get semaphore value
+    bx      lr                          // return to caller
+    .endm
 
 /**
  *  \brief Waiting and acquire the semaphore.
@@ -279,13 +282,13 @@ semcheck_\name:
  *  Note: R0 and R1 are destroyed
  */
 
-	.macro	SEMAPHORE_ACQUIRE name
-	CORO_WAIT semcheck_\name
-	ldr		r0, =sem_\name
-	ldr		r1, [r0]
-	sub		r1, r1, #1
-	str		r1, [r0]
-	.endm
+    .macro  SEMAPHORE_ACQUIRE name
+    CORO_WAIT semcheck_\name
+    ldr     r0, =sem_\name
+    ldr     r1, [r0]
+    sub     r1, r1, #1
+    str     r1, [r0]
+    .endm
 
 /**
  *  \brief Release the semaphore.
@@ -293,12 +296,12 @@ semcheck_\name:
  *
  *  Note: R0 and R1 are destroyed
  */
-	.macro SEMAPHORE_RELEASE name
-	ldr		r0, =sem_\name
-	ldr		r1, [r0]
-	add		r1, r1, #1
-	str		r1, [r0]
-	.endm
+    .macro SEMAPHORE_RELEASE name
+    ldr     r0, =sem_\name
+    ldr     r1, [r0]
+    add     r1, r1, #1
+    str     r1, [r0]
+    .endm
 
 
 
