@@ -43,10 +43,11 @@
  *
  * main:
  *      // ...
+ * loop:
  *      CORO_CALL A 
  *      CORO_CALL B
  *      // exit condition test
- *      bne main
+ *      bne loop
  *
  *  \endcode
  *
