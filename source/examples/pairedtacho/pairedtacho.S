@@ -72,6 +72,15 @@ wait_500ms:
     bl      usleep
     pop     {pc}
 
+/**
+ *   Initialize Tacho Subsystem 
+ *
+ *   Modifies (and returns):
+ *        R4: left seqno value
+ *        R5: right seqno value
+ *
+ *   Note: init_tacho does not conform to AAPCS as it modifies R4 and R5
+ **/
 init_tacho:
     push    {lr}
 detect_tacho:
