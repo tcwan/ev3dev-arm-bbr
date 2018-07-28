@@ -48,7 +48,6 @@
  *      CORO_CALL B
  *      // exit condition test
  *      bne loop
- *
  *  \endcode
  *
  *  Any local variables which need to be persistent across a coroutine switching
@@ -56,7 +55,6 @@
  *
  *  \{
  */
-
 
 #pragma once
 
@@ -87,7 +85,6 @@ co_\name:   .word   NULL
  *
  *  R0 is modified in this macro (not preserved per AAPCS)
  *  R1 is modified in this macro (not preserved per AAPCS)
- *
  */
     .macro  CORO_CONTEXT_INIT name
     ldr     r1, =co_\name
@@ -103,7 +100,6 @@ co_\name:   .word   NULL
  *
  *  Note: The alignment must be set properly before using this macro, 
  *        otherwise it is not guaranteed to be type-aligned
- *
  */
     .macro  CORO_LOCAL  name, type, val
     .data
@@ -193,12 +189,11 @@ coro_\name:
 
 /**
  *  \brief Restart the coroutine.
-*  \return coroutine status
+ *  \return coroutine status
  *
  *  R0 is retrieved from the stack (preserved by CORO_START)
  *  R1 is modified in this macro (not preserved per AAPCS)
  */
-
     .macro  CORO_RESTART
     pop     {r0, lr}                    // Restore co_p
     mov     r1, #NULL                   // Set pointer to NULL
@@ -211,7 +206,6 @@ coro_\name:
  *  \brief Quit the coroutine.
  */
 #define CORO_QUIT   CORO_END
-
 
 /**
  *  \brief Call the coroutine.
@@ -231,8 +225,6 @@ coro_\name:
  *
  *  Note: This macro is not intended for public use
  */
-
-
     .macro  CORO_ALIVE
     cmp     r0, #CO_END
     movlos  r0, #TRUE
@@ -245,9 +237,7 @@ coro_\name:
  *
  *  R0 is modified in this macro (not preserved per AAPCS)
  *  R1 is modified in this macro (not preserved per AAPCS)
- *
  */
-
     .macro  CORO_WAIT_CORO  name
 6:
     CORO_CALL \name
@@ -261,7 +251,6 @@ coro_\name:
  *  \param val Semaphore capacity.
  *
  *  Note: We insert a semaphore check routine definition here as well
- *
  */
     .macro  SEMAPHORE_INIT name, val
     .data
@@ -282,7 +271,6 @@ semcheck_\name:
  *
  *  Note: R0 and R1 are destroyed
  */
-
     .macro  SEMAPHORE_ACQUIRE name
     CORO_WAIT semcheck_\name
     ldr     r0, =sem_\name
@@ -303,10 +291,5 @@ semcheck_\name:
     add     r1, r1, #1
     str     r1, [r0]
     .endm
-
-
-
 #endif
-
 /** \} */
-
