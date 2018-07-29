@@ -61,6 +61,9 @@ endmotors:      .byte   DESC_LIMIT          // Vector Terminator
 
     .equiv      motors_vec_len, . - motors_vec
 
+/* Coroutine synchronization variable */
+num_running_motors: .word    0
+
 /* Coroutine related variables */
 
     .align 2
@@ -85,6 +88,15 @@ wait_500ms:
     bl      usleep
     pop     {pc}
 
+/**
+ *   Initialize Tacho Subsystem
+ *
+ *   Modifies (and returns):
+ *        R4: left seqno value
+ *        R5: right seqno value
+ *
+ *   Note: init_tacho does not conform to AAPCS as it modifies R4 and R5
+ **/
 init_tacho:
     push    {lr}
 detect_tacho:
@@ -146,22 +158,6 @@ found_motors:
     bl      prog_display_string
     pop     {pc}
 
-stop_lefttacho:
-    push    {lr}
-    ldr     r0, =leftseqno
-    ldrb    r0, [r0]                        // setup motor sequence number
-    mov     r1, #TACHO_STOP                 // stop motor
-    bl      set_tacho_command_inx
-    pop     {pc}
-
-stop_righttacho:
-    push    {lr}
-    ldr     r0, =rightseqno
-    ldrb    r0, [r0]                        // setup motor sequence number
-    mov     r1, #TACHO_STOP                 // stop motor
-    bl      set_tacho_command_inx
-    pop     {pc}
-
 stop_and_release_tachos:
     push    {lr}
     ldr     r0, =motors_vec                 // setup motor vector
@@ -204,6 +200,14 @@ has_right_tacho_reached_target:
     movlt   r0, #FALSE
     pop     {r4, pc}
 
+has_no_running_motors:
+    ldr     r0, =num_running_motors
+    ldr     r0, [r0]
+    teq     r0, #0
+    moveq   r0, #TRUE
+    movne   r0, #FALSE
+    mov     pc, lr                          // returns TRUE if num_running_motors is zero
+
 /** advance_tacho_target_position
  *
  * Parameters:
@@ -228,12 +232,30 @@ start_tacho:
     push    {lr}
     mov     r1, #TACHO_RUN_MODE             // configure run mode
     bl      set_tacho_command_inx
+    ldr     r1, =num_running_motors
+    ldr     r0, [r1]
+    add     r0, r0, #1
+    str     r0, [r1]                        // increment num_running_motors
+    pop     {pc}
+
+/** stop_tacho
+ *
+ * Parameters:
+ *    r0: motor sequence number
+ */
+stop_tacho:
+    push    {lr}
+    mov     r1, #TACHO_STOP                 // stop motor
+    bl      set_tacho_command_inx
+    ldr     r1, =num_running_motors
+    ldr     r0, [r1]
+    sub     r0, r0, #1
+    str     r0, [r1]                        // decrement num_running_motors
     pop     {pc}
 
 /**
  * Coroutine: left_tacho
  */
-
     CORO_START  left_tacho
 
     ldr     r1, =left_count
@@ -246,12 +268,16 @@ left_advance:
     bl      advance_tacho_target_position   // Set new target
 
     ldr     r0, =leftseqno
-    ldrb    r0, [r0]                        // Retrieve actual sequence number value
+    ldrb    r0, [r0]                        // Setup motor sequence number
     bl      start_tacho                     // Start motor
 
     CORO_WAIT   has_left_tacho_reached_target
 
-    bl      stop_lefttacho                  // Don't let one motor get ahead of the other
+    ldr     r0, =leftseqno
+    ldrb    r0, [r0]                        // Setup motor sequence number
+    bl      stop_tacho                      // Don't let one motor get ahead of the other
+
+    CORO_WAIT   has_no_running_motors       // Don't let one motor get ahead of the other
 
     ldr     r1, =left_count
     ldr     r0, [r1]
@@ -263,7 +289,6 @@ left_advance:
 /**
  * Coroutine: right_tacho
  */
-
     CORO_START  right_tacho
 
     ldr     r1, =right_count
@@ -276,12 +301,16 @@ right_advance:
     bl      advance_tacho_target_position   // Set new target
 
     ldr     r0, =rightseqno
-    ldrb    r0, [r0]                        // Retrieve actual sequence number value
+    ldrb    r0, [r0]                        // Setup motor sequence number
     bl      start_tacho                     // Start motor
 
     CORO_WAIT   has_right_tacho_reached_target
 
-    bl      stop_righttacho                 // Don't let one motor get ahead of the other
+    ldr     r0, =rightseqno
+    ldrb    r0, [r0]                        // Setup motor sequence number
+    bl      stop_tacho                      // Don't let one motor get ahead of the other
+
+    CORO_WAIT   has_no_running_motors       // Don't let one motor get ahead of the other
 
     ldr     r1, =right_count
     ldr     r0, [r1]
@@ -298,7 +327,7 @@ right_advance:
  *        R4: left seqno value
  *        R5: right seqno value
  *        R6: Loop Counter value
- *        R7: No of running motors
+ *        R7: No of motors for coroutine dispatcher
  *        R8: countperrot value
  **/
     .global main
@@ -367,8 +396,14 @@ loop:
     CORO_CONTEXT_INIT left_tacho
     CORO_CONTEXT_INIT right_tacho
 
-    // Setup number of running motors
+    // Setup number of motors for coroutine dispatcher
     mov     r7, #2
+
+    // initialize num_running_motors synchronization variable
+    ldr     r1, =num_running_motors
+    mov     r0, #0
+    str     r0, [r1]
+
 tacho_loop:
     CORO_CALL   left_tacho                  // Complete one 360 deg rotation
     cmp         r0, #CO_END
