@@ -172,7 +172,6 @@ stop_and_release_tachos:
     bl      multi_set_tacho_stop_action_inx
     pop     {pc}
 
-
 has_left_tacho_reached_target:
     push    {r4, lr}
     ldr     r0, =leftseqno
@@ -224,7 +223,6 @@ advance_tacho_target_position:
  * Parameters:
  *    r0: motor sequence number
  */
-
 start_tacho:
     // start motor
     push    {lr}
