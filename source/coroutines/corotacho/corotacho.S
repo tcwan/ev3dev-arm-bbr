@@ -161,7 +161,7 @@ found_motors:
 stop_and_release_tachos:
     push    {lr}
     ldr     r0, =motors_vec                 // setup motor vector
-    mov     r1, #TACHO_STOP             // set run mode
+    mov     r1, #TACHO_STOP                 // set run mode
     bl      multi_set_tacho_command_inx
     ldr     r0, =motors_vec                 // setup motor vector
     mov     r1, #TACHO_COAST                // release motor
