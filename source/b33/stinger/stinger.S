@@ -50,6 +50,7 @@ waitrtachostr:  .asciz      "Waiting (Right Tacho Port C)\n"
 foundlefttachostr:  .asciz  "Tacho: Left ("
 foundrighttachostr: .asciz  "), Right ("
 foundtachoendstr:   .asciz  ")   "
+foundtouchstr:  .asciz      "Touch: "
 loopstr:        .asciz "Remaining loops: "
 
 // Need to align the following data, otherwise the string termination is not guaranteed
@@ -60,11 +61,13 @@ countperrot:    .word   0                   // Tacho count per rotation (360 deg
 num_running_motors: .word    0
 
 motors_vec:                     // Vector of motor seqnos needed by multi_set_tacho_XXX()
-seqno_right:     .byte   0                  // Sequence number for right motor
-seqno_left:      .byte   0                  // Sequence number for left motor
+seqno_right:    .byte   0                   // Sequence number for right motor
+seqno_left:     .byte   0                   // Sequence number for left motor
 endmotors:      .byte   DESC_LIMIT          // Vector Terminator
 
     .equiv      motors_vec_len, . - motors_vec
+
+seqno_touch:    .byte    0
 
 /*****************************************************************************/
 /* motor_xxxx Coroutine Macro Definition
@@ -298,7 +301,30 @@ wait_500ms:
  **/
 init_sensors:
     push    {lr}
-    // FIXME:
+detect_sensor:
+    bl      ev3_sensor_init                  // Returns number of sensors detected
+    cmp		r0, #1
+    bge		found_a_sensor
+    ldr     r0, =SLEEP_DURATION_1SEC
+    bl      usleep
+    b       detect_sensor                    // Loop until at least one sensor detected
+
+found_a_sensor:
+    mov     r0, #LEGO_EV3_TOUCH
+    ldr		r1, =seqno_touch
+    mov     r2, #0
+    bl      ev3_search_sensor				// Search for touch sensor starting from 0, TRUE if found
+    cmp     r0, #FALSE
+    beq     detect_sensor                   // Not found, try again from the beginning
+
+found_touch_sensor:
+    ldr     r0, =foundtouchstr
+    bl      prog_content2
+
+    ldr     r1, =seqno_touch
+    ldrb    r0, [r1]                        // read touch seqno U8 from memory into r0
+    bl      prog_display_integer
+
     pop	    {pc}
 
 /** init_motors
@@ -499,6 +525,8 @@ loop:
     mov     r1, #2                          // Right aligned 2 digit counter
     bl      prog_display_integer_aligned
 #endif
+// FIXME:
+// return ( get_sensor_value( 0, sn, &val ) && ( val != 0 ));
 
     // Reset Coroutines for coroutine_dispatcher
     CORO_CONTEXT_INIT motor_left
