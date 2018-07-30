@@ -405,7 +405,7 @@ loop:
     mov     r0, #0
     str     r0, [r1]
 
-tacho_loop:
+coroutine_dispatcher:
     ldr         r0, =SLEEP_DURATION_10MS
     bl          usleep                      // Check every 10 ms
     CORO_CALL   left_tacho                  // Complete one 360 deg rotation
@@ -415,7 +415,7 @@ tacho_loop:
     cmp         r0, #CO_END
     subeq       r7, r7, #1
     cmp         r7, #0
-    bgt         tacho_loop
+    bgt         coroutine_dispatcher
 
     subs    r6, r6, #1                      // Continue until done
     bne     loop
