@@ -217,7 +217,7 @@ advance_tacho_target_position:
     // new target position = scaled countperrot + old target position
     add     r1, r1, r2, asr #ROTATION_SCALING   
     str     r1, [r0]                        // store new target position
-    bx      lr
+    mov     pc, lr
 
 /** start_tacho
  *
