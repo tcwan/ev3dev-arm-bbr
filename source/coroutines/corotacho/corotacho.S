@@ -274,8 +274,6 @@ left_advance:
     ldrb    r0, [r0]                        // Setup motor sequence number
     bl      stop_tacho                      // Stop motor
 
-    CORO_YIELD                              // Must allow the other motor to stop as well
-
     CORO_WAIT   has_no_running_motors       // Don't let one motor get ahead of the other
 
     CORO_YIELD                              // Must allow the other motor to sync execution to this step
@@ -310,8 +308,6 @@ right_advance:
     ldr     r0, =rightseqno
     ldrb    r0, [r0]                        // Setup motor sequence number
     bl      stop_tacho                      // Stop motor
-
-    CORO_YIELD                              // Must allow the other motor to stop as well
 
     CORO_WAIT   has_no_running_motors       // Don't let one motor get ahead of the other
 
@@ -410,6 +406,8 @@ loop:
     str     r0, [r1]
 
 tacho_loop:
+    ldr         r0, =SLEEP_DURATION_10MS
+    bl          usleep                      // Check every 10 ms
     CORO_CALL   left_tacho                  // Complete one 360 deg rotation
     cmp         r0, #CO_END
     subeq       r7, r7, #1
