@@ -28,11 +28,11 @@
 #define R_MOTOR_PORT      OUTPUT_C
 #define R_MOTOR_EXT_PORT  EXT_PORT__NONE_
 
-#define TACHO_MOTOR_TYPE    LEGO_EV3_L_MOTOR        // Use LEGO_EV3_M_MOTOR for Medium Servo Motor
-#define TACHO_MAX_SPEED     200                     // Be careful not to set too large a number
-#define TACHO_RAMPTIME_MS   100                     // 100 ms to ramp up/down to speed
-#define TACHO_STOP_MODE     TACHO_BRAKE             // TACHO_COAST, TACHO_BRAKE, TACHO_HOLD
-#define TACHO_RUN_MODE      TACHO_RUN_FOREVER       // TACHO_RUN_TO_REL_POS, TACHO_RUN_FOREVER
+#define TACHO_MOTOR_TYPE  LEGO_EV3_L_MOTOR // Use LEGO_EV3_M_MOTOR for Medium Servo Motor
+#define TACHO_MAX_SPEED   200              // Be careful not to set too large a number
+#define TACHO_RAMPTIME_MS 100              // 100 ms to ramp up/down to speed
+#define TACHO_STOP_MODE   TACHO_BRAKE      // TACHO_COAST, TACHO_BRAKE, TACHO_HOLD
+#define TACHO_RUN_MODE    TACHO_RUN_FOREVER // TACHO_RUN_TO_REL_POS, TACHO_RUN_FOREVER
 
     .equiv  NUM_LOOPS, 10
 
@@ -233,9 +233,6 @@ loop:
     mov     r1, #2                          // Right aligned 2 digit counter
     bl      prog_display_integer_aligned
 
-    // Setup number of running motors
-    mov     r7, #2                          // 2 motors are running
-
     mov     r0, r4                          // setup left motor sequence number
     ldr     r8, =left_tacho_currpos         // Pointer to left_tacho_currpos (temporary)
     mov     r1, r8
@@ -255,8 +252,11 @@ loop:
     mov     r1, #TACHO_RUN_MODE             // set run mode
     bl      multi_set_tacho_command_inx
 
+// Closed loop wait (Position-monitoring based)
 wait_destpos:
-    // Closed loop wait (Position-monitoring based)
+    // Setup number of running motors
+    mov     r7, #2                          // 2 motors are running
+
     ldr     r0, =SLEEP_DURATION_10MS
     bl      usleep                          // Check every 10 ms
 
