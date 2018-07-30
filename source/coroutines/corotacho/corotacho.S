@@ -28,11 +28,11 @@
 #define R_MOTOR_PORT      OUTPUT_C
 #define R_MOTOR_EXT_PORT  EXT_PORT__NONE_
 
-#define TACHO_MOTOR_TYPE    LEGO_EV3_L_MOTOR        // Use LEGO_EV3_M_MOTOR for Medium Servo Motor
-#define TACHO_MAX_SPEED     200                     // Be careful not to set too large a number
-#define TACHO_RAMPTIME_MS   100                     // 100 ms to ramp up/down to speed
-#define TACHO_STOP_MODE     TACHO_BRAKE             // TACHO_COAST, TACHO_BRAKE, TACHO_HOLD
-#define TACHO_RUN_MODE      TACHO_RUN_FOREVER       // TACHO_RUN_TO_REL_POS, TACHO_RUN_FOREVER
+#define TACHO_MOTOR_TYPE  LEGO_EV3_L_MOTOR // Use LEGO_EV3_M_MOTOR for Medium Servo Motor
+#define TACHO_MAX_SPEED   200              // Be careful not to set too large a number
+#define TACHO_RAMPTIME_MS 100              // 100 ms to ramp up/down to speed
+#define TACHO_STOP_MODE   TACHO_BRAKE      // TACHO_COAST, TACHO_BRAKE, TACHO_HOLD
+#define TACHO_RUN_MODE    TACHO_RUN_FOREVER // TACHO_RUN_TO_REL_POS, TACHO_RUN_FOREVER
 
     .equiv  NUM_LOOPS, 10
     // Scaling factor in no. of right bitshifts for countperrot (ASR 2 == div. 4 [90 deg])
@@ -393,12 +393,9 @@ loop:
     mov     r1, #2                          // Right aligned 2 digit counter
     bl      prog_display_integer_aligned
 
-    // Reset Coroutines for tacho_loop
+    // Reset Coroutines for coroutine_dispatcher
     CORO_CONTEXT_INIT left_tacho
     CORO_CONTEXT_INIT right_tacho
-
-    // Setup number of motors for coroutine dispatcher
-    mov     r7, #2
 
     // initialize num_running_motors synchronization variable
     ldr     r1, =num_running_motors
@@ -406,6 +403,9 @@ loop:
     str     r0, [r1]
 
 coroutine_dispatcher:
+    // Setup number of motors for coroutine dispatcher
+    mov         r7, #2
+
     ldr         r0, =SLEEP_DURATION_10MS
     bl          usleep                      // Check every 10 ms
     CORO_CALL   left_tacho                  // Complete one 360 deg rotation
