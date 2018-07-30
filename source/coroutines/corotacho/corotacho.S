@@ -53,6 +53,8 @@ loopstr:        .asciz "Remaining loops: "
     .align
 countperrot:    .word   0                   // Tacho count per rotation (360 deg)
                                             // Assume identical for both motors
+/* Coroutine synchronization variable */
+num_running_motors: .word    0
 
 motors_vec:                     // Vector of motor seqnos needed by multi_set_tacho_XXX()
 rightseqno:     .byte   0                   // Sequence number for right motor
@@ -61,13 +63,8 @@ endmotors:      .byte   DESC_LIMIT          // Vector Terminator
 
     .equiv      motors_vec_len, . - motors_vec
 
-/* Coroutine synchronization variable */
-num_running_motors: .word    0
-
-/* Coroutine related variables */
-
     .align 2
-
+/* Coroutine related variables */
     CORO_LOCAL      left_count, word, 0
     CORO_LOCAL      right_count, word, 0
     CORO_LOCAL      left_tacho_currpos, word, 0
@@ -275,9 +272,13 @@ left_advance:
 
     ldr     r0, =leftseqno
     ldrb    r0, [r0]                        // Setup motor sequence number
-    bl      stop_tacho                      // Don't let one motor get ahead of the other
+    bl      stop_tacho                      // Stop motor
+
+    CORO_YIELD                              // Must allow the other motor to stop as well
 
     CORO_WAIT   has_no_running_motors       // Don't let one motor get ahead of the other
+
+    CORO_YIELD                              // Must allow the other motor to sync execution to this step
 
     ldr     r1, =left_count
     ldr     r0, [r1]
@@ -308,9 +309,13 @@ right_advance:
 
     ldr     r0, =rightseqno
     ldrb    r0, [r0]                        // Setup motor sequence number
-    bl      stop_tacho                      // Don't let one motor get ahead of the other
+    bl      stop_tacho                      // Stop motor
+
+    CORO_YIELD                              // Must allow the other motor to stop as well
 
     CORO_WAIT   has_no_running_motors       // Don't let one motor get ahead of the other
+
+    CORO_YIELD                              // Must allow the other motor to sync execution to this step
 
     ldr     r1, =right_count
     ldr     r0, [r1]

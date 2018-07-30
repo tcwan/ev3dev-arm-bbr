@@ -258,7 +258,7 @@ loop:
 wait_destpos:
     // Closed loop wait (Position-monitoring based)
     ldr     r0, =SLEEP_DURATION_10MS
-    bl      usleep                          // Check ever 100 ms
+    bl      usleep                          // Check every 10 ms
 
     mov     r0, r4                          // setup left motor sequence number
     ldr     r1, =left_tacho_currpos         // Pointer to left_tacho_currpos (temporary)
