@@ -438,8 +438,6 @@ detect_tacho:
     b       detect_tacho                    // Loop until tacho motors detected
 
 find_l_motor:
-    ldr     r0, =waitltachostr
-    bl      prog_content1
     mov     r0, #TACHO_MOTOR_TYPE
     mov     r1, #L_MOTOR_PORT
     mov     r2, #L_MOTOR_EXT_PORT
@@ -448,13 +446,13 @@ find_l_motor:
     bl      dvcs_search_tacho_type_for_port 
     cmp     r0, #FALSE
     bne     find_r_motor
+    ldr     r0, =waitltachostr
+    bl      prog_content1
     bl      ev3_tacho_init                  // Not found, reinitialize ev3_tacho desc
     bl      wait_500ms
     b       find_l_motor                    // Delay 500 ms, try again
 
 find_r_motor:
-    ldr     r0, =waitrtachostr
-    bl      prog_content1
     mov     r0, #TACHO_MOTOR_TYPE
     mov     r1, #R_MOTOR_PORT
     mov     r2, #R_MOTOR_EXT_PORT
@@ -463,6 +461,8 @@ find_r_motor:
     bl      dvcs_search_tacho_type_for_port 
     cmp     r0, #FALSE
     bne     found_motors
+    ldr     r0, =waitrtachostr
+    bl      prog_content1
     bl      ev3_tacho_init                  // Not found, reinitialize ev3_tacho desc
     bl      wait_500ms
     b       find_r_motor                    // Delay 500 ms, try again
