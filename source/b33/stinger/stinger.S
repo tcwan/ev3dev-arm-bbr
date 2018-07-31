@@ -5,7 +5,7 @@
                                                ((())))
  *//**
  *  \file  stinger.S
- *  \brief  ARM-based stinger robot using coroutines.
+ *  \brief  ARM-based stinger robot.
  *          Actuators/Motors:
  *              Two Large Servo Motor must be attached to ports OUTPUT_B and OUTPUT_C.
  *              OUTPUT_B is the Left Motor while OUTPUT_C is the Right Motor.
@@ -24,6 +24,11 @@
 #include "ev3_sensor.h"
 #include "ev3dev-arm-bbr.h"
 
+/* Standard C Library routines */
+	.extern	random									// <stdlib.h>
+	.extern srandom									// <stdlib.h>
+	.extern getpid									// <unistd.h>
+
 #define L_MOTOR_PORT      OUTPUT_B
 #define L_MOTOR_EXT_PORT  EXT_PORT__NONE_
 #define R_MOTOR_PORT      OUTPUT_C
@@ -35,7 +40,8 @@
 #define TACHO_STOP_MODE     TACHO_BRAKE             // TACHO_COAST, TACHO_BRAKE, TACHO_HOLD
 #define TACHO_RUN_MODE      TACHO_RUN_FOREVER       // TACHO_RUN_TO_REL_POS, TACHO_RUN_FOREVER
 
-    .equiv  NUM_LOOPS, 10
+    // Number of stinger activations
+    .equiv  NUM_STINGS, 8
     // Number of LEGO MINDSTORM Large Servo Motors
     .equiv  NUM_MOTORS, 2
     // Scaling factor in no. of right bitshifts for countperrot (ASR 2 == div. 4 [90 deg])
@@ -50,13 +56,17 @@ waitrtachostr:  .asciz      "Waiting (Right Tacho Port C)\n"
 foundlefttachostr:  .asciz  "Tacho: Left ("
 foundrighttachostr: .asciz  "), Right ("
 foundtachoendstr:   .asciz  ")   "
+waittouchstr:   .asciz      "Waiting for Touch Sensor     \n"
 foundtouchstr:  .asciz      "Touch: "
-loopstr:        .asciz "Remaining loops: "
+waitingstr:     .asciz      "Waiting for stinger..."
+donestr:        .asciz      "Stinger done!         "
 
 // Need to align the following data, otherwise the string termination is not guaranteed
     .align
 countperrot:    .word   0                   // Tacho count per rotation (360 deg)
                                             // Assume identical for both motors
+touch_val:		.word	0					// Touch sensor input buffer
+
 /* Coroutine synchronization variable */
 num_running_motors: .word    0
 
@@ -99,7 +109,9 @@ seqno_touch:    .byte    0
     // Coroutine Variables for motor_\side
     .data
     .align
-    CORO_LOCAL		count_\side, word, 0
+    CORO_LOCAL		count_\side, byte, 0
+
+    .align
     CORO_LOCAL		tacho_currpos_\side, word, 0
     CORO_LOCAL		tacho_targetpos_\side, word, 0
 
@@ -498,8 +510,11 @@ init_robot:
  *   Main application routine
  *
  * Variables:
- *   R6: Loop Counter value
+ *   R4: Sequence No of Touch Sensor
+ *   R5: Address of touch_val
+ *   R6: Number of steps
  *   R7: No of motors for coroutine dispatcher
+ *   R8: Number of stinger activations
  **/
     .global main
 main:
@@ -513,27 +528,49 @@ main:
 robot_setup:
     bl      init_robot                      // Setup sensor and motor modules
 
-    mov     r6, #NUM_LOOPS                  // Setup loop count
+    bl		getpid							// Retrieve the PID of the process, as srandom seed
+	bl		srandom							// Initialize random number generator
 
-loop:
+    ldr		r4, =seqno_touch
+    ldrb	r4, [r4]						// Retrieve touch sensor sequence number
 
-#if 0
-    ldr     r0, =loopstr
-    bl      prog_content2
+    ldr		r5, =touch_val					// Pointer to touch_val
 
-    mov     r0, r6                          // Display loop counter
+    mov		r8, #NUM_STINGS					// Number of activations
+
+activation_loop:
+    ldr     r0, =waitingstr
+    mov		r1, #7							// Row 7
+    bl      prog_contentX
+
+    mov     r0, r8                          // Display sting counter
     mov     r1, #2                          // Right aligned 2 digit counter
     bl      prog_display_integer_aligned
-#endif
-// FIXME:
-// return ( get_sensor_value( 0, sn, &val ) && ( val != 0 ));
+
+wait_stinger:
+    ldr     r0, =SLEEP_DURATION_10MS
+    bl      usleep                      	// Check every 10 ms
+
+    mov     r0, #0
+    mov		r1, r4							// touch sensor sequence number
+    mov		r2, r5							// pointer to touch_val
+    bl		get_sensor_value
+    cmp     r0, #0
+    beq		wait_stinger					// No value read, keep waiting
+
+	ldr		r0, [r5]						// Retrieve touch value
+	cmp		r0, #0
+	beq		wait_stinger					// Value is 0 (no touch), keep waiting
+
+	bl		random							// Generate a random value in R0
+	and		r6, r0, #0x3					// Keep last 2 bits as step count (0-3)
+	add		r6, r6, #1						// make sure there is at least one step (1-4)
+
+step:
 
     // Reset Coroutines for coroutine_dispatcher
     CORO_CONTEXT_INIT motor_left
     CORO_CONTEXT_INIT motor_right
-
-    // Setup number of motors for coroutine dispatcher
-    mov     r7, #NUM_MOTORS
 
     // initialize num_running_motors synchronization variable
     ldr     r1, =num_running_motors
@@ -541,6 +578,9 @@ loop:
     str     r0, [r1]
 
 coroutine_dispatcher:
+    // Setup number of motors for coroutine dispatcher
+    mov         r7, #NUM_MOTORS
+
     ldr         r0, =SLEEP_DURATION_10MS
     bl          usleep                      // Check every 10 ms
     CORO_CALL   motor_left                  // Complete one 360 deg rotation
@@ -552,11 +592,18 @@ coroutine_dispatcher:
     cmp         r7, #0
     bgt         coroutine_dispatcher
 
-    subs    r6, r6, #1                      // Continue until done
-    bne     loop
+    subs    r6, r6, #1                      // Continue until movement done
+    bgt     step
 
+check_stings:
+    subs    r8, r8, #1
+    bne     activation_loop					// Continue until sting activations done
 
 robot_cleanup:
+    ldr     r0, =donestr
+    mov		r1, #7							// Row 7
+    bl      prog_contentX
+
     bl      stop_and_release_motors
 
 /************************* End Customization Here ****************************/
