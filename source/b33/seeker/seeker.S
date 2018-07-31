@@ -54,7 +54,7 @@
     .data
     .align
 
-printstr:       .asciz      "Stinger Robot"
+printstr:       .asciz      "Seeker Robot"
 waitltachostr:  .asciz      "Waiting (Left Tacho Port B) \n"
 waitrtachostr:  .asciz      "Waiting (Right Tacho Port C)\n"
 foundlefttachostr:  .asciz  "Tacho: Left ("
@@ -62,7 +62,6 @@ foundrighttachostr: .asciz  "), Right ("
 foundtachoendstr:   .asciz  ")   "
 waittouchstr:   .asciz      "Waiting for Touch Sensor     \n"
 foundtouchstr:  .asciz      "Touch: "
-loopstr:        .asciz      "Remaining loops: "
 waitingstr:     .asciz      "Waiting for stinger..."
 donestr:        .asciz      "Stinger done!         "
 
@@ -70,9 +69,10 @@ donestr:        .asciz      "Stinger done!         "
     .align
 countperrot:    .word   0                   // Tacho count per rotation (360 deg)
                                             // Assume identical for both motors
+touch_val:		.word	0					// Touch sensor input buffer
+
 /* Coroutine synchronization variable */
 num_running_motors: .word    0
-touch_val:		.word	0					// Touch sensor input buffer
 
 motors_vec:                     // Vector of motor seqnos needed by multi_set_tacho_XXX()
 seqno_right:    .byte   0                   // Sequence number for right motor
@@ -140,7 +140,6 @@ seqno_touch:    .byte    0
 	 *
 	 **/
 has_tacho_reached_target_\side:
-// FIXME: need to account for direction
     push    {r4, lr}
     ldr     r0, =seqno_\side
     ldrb    r0, [r0]                        // Retrieve motor sequence number
@@ -632,7 +631,7 @@ wait_stinger:
 
 #if 0
 	bl		random							// Generate a random value in R0
-	and		r0, #0x3						// Keep last 2 bits
+	and		r0, r0, #0x3					// Keep last 2 bits
 #else
     mov     r0, r9							// Retrieve movement index
 #endif
