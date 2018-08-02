@@ -14,7 +14,6 @@
 #include <unistd.h>
 #include "ev3dev-arm-ctypes.h"
 #include "devices.h"
-#include <stdio.h>
 
 #define MS_TO_US_MULTIPLIER  1000
 #define DEVICE_SETTLING_TIME (500 * MS_TO_US_MULTIPLIER)

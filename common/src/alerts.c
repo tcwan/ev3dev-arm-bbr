@@ -38,6 +38,6 @@ void alrt_goodbye(bool audible) {
 void alrt_tone(U32 frequency, U32 duration)
 {
 	char tone_cmdbuf[TONE_CMDBUFSIZE];
-	sprintf(tone_cmdbuf, TONE_CMDSTR, frequency, duration);
+	snprintf(tone_cmdbuf, TONE_CMDBUFSIZE, TONE_CMDSTR, frequency, duration);
 	system(tone_cmdbuf);
 }
