@@ -23,22 +23,12 @@
 #include "ev3_tacho.h"
 #include "ev3_sensor.h"
 #include "ev3dev-arm-bbr.h"
+#include "../b33.h"
 
 /* Standard C Library routines */
 	.extern	random									// <stdlib.h>
 	.extern srandom									// <stdlib.h>
 	.extern getpid									// <unistd.h>
-
-#define L_MOTOR_PORT      OUTPUT_B
-#define L_MOTOR_EXT_PORT  EXT_PORT__NONE_
-#define R_MOTOR_PORT      OUTPUT_C
-#define R_MOTOR_EXT_PORT  EXT_PORT__NONE_
-
-#define TACHO_MOTOR_TYPE    LEGO_EV3_L_MOTOR        // Use LEGO_EV3_M_MOTOR for Medium Servo Motor
-#define TACHO_MAX_SPEED     200                     // Be careful not to set too large a number
-#define TACHO_RAMPTIME_MS   100                     // 100 ms to ramp up/down to speed
-#define TACHO_STOP_MODE     TACHO_BRAKE             // TACHO_COAST, TACHO_BRAKE, TACHO_HOLD
-#define TACHO_RUN_MODE      TACHO_RUN_FOREVER       // TACHO_RUN_TO_REL_POS, TACHO_RUN_FOREVER
 
     // Number of stinger activations
     .equiv  NUM_STINGS, 8
