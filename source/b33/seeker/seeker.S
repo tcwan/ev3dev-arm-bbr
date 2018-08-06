@@ -40,6 +40,8 @@
     .equiv  NUM_MOTORS, 2
     // Scaling factor in no. of right bitshifts for countperrot (ASR 2 == div. 4 [90 deg])
     .equiv  ROTATION_SCALING, 2
+    // Number of LEGO MINDSTORM Sensors
+    .equiv  NUM_SENSORS, 2
 
     .data
     .align
@@ -47,13 +49,27 @@
 printstr:       .asciz      "Seeker Robot"
 waitltachostr:  .asciz      "Waiting (Left Tacho Port B) \n"
 waitrtachostr:  .asciz      "Waiting (Right Tacho Port C)\n"
+waitheadstr:    .asciz      "Waiting for Head Motor      \n"
 foundlefttachostr:  .asciz  "Tacho: Left ("
 foundrighttachostr: .asciz  "), Right ("
-foundtachoendstr:   .asciz  ")   "
+foundheadtachostr:  .asciz  "), Head ("
+foundtachoendstr:   .asciz  ")"
 waittouchstr:   .asciz      "Waiting for Touch Sensor     \n"
+waitcolorstr:   .asciz      "Waiting for Color Sensor     \n"
+
 foundtouchstr:  .asciz      "Touch: "
-waitingstr:     .asciz      "Waiting for stinger..."
-donestr:        .asciz      "Stinger done!         "
+foundcolorstr:  .asciz      "Color: "
+
+// Behavior Status Strings
+behavior_idlestr:       .asciz "Idle       "
+behavior_lowerheadstr:  .asciz "Lower Head "
+behavior_followpathstr: .asciz "Follow Path"
+behavior_escapestr:     .asciz "Escape     "
+
+#if 1
+waitingstr:     .asciz      "Waiting for input..."
+donestr:        .asciz      "Seeker done!        "
+#endif
 
 // Need to align the following data, otherwise the string termination is not guaranteed
     .align
@@ -64,6 +80,7 @@ touch_val:		.word	0					// Touch sensor input buffer
 /* Coroutine synchronization variable */
 num_running_motors: .word    0
 
+
 motors_vec:                     // Vector of motor seqnos needed by multi_set_tacho_XXX()
 seqno_right:    .byte   0                   // Sequence number for right motor
 seqno_left:     .byte   0                   // Sequence number for left motor
@@ -71,7 +88,10 @@ endmotors:      .byte   DESC_LIMIT          // Vector Terminator
 
     .equiv      motors_vec_len, . - motors_vec
 
-seqno_touch:    .byte    0
+seqno_head:     .byte   0
+seqno_touch:    .byte   0
+seqno_color:    .byte   0
+
 
 /*****************************************************************************/
 /* motor_xxxx Coroutine Macro Definition
@@ -377,7 +397,7 @@ init_sensors:
     push    {lr}
 detect_sensor:
     bl      ev3_sensor_init                  // Returns number of sensors detected
-    cmp		r0, #1
+    cmp		r0, #NUM_SENSORS
     bge		found_a_sensor
     ldr     r0, =SLEEP_DURATION_1SEC
     bl      usleep
@@ -395,11 +415,29 @@ found_a_sensor:
     beq     detect_sensor                   // Not found, try again from the beginning
 
 found_touch_sensor:
+	ldr		r0, =waitcolorstr
+	bl		prog_content1
+
+    mov     r0, #LEGO_EV3_COLOR
+    ldr		r1, =seqno_color
+    mov     r2, #0
+    bl      ev3_search_sensor				// Search for touch sensor starting from 0, TRUE if found
+    cmp     r0, #FALSE
+    beq     detect_sensor                   // Not found, try again from the beginning
+
+found_color_sensor:
     ldr     r0, =foundtouchstr
     bl      prog_content2
 
     ldr     r1, =seqno_touch
     ldrb    r0, [r1]                        // read touch seqno U8 from memory into r0
+    bl      prog_display_integer
+
+    ldr     r0, =foundcolorstr
+    bl      prog_display_string
+
+    ldr     r1, =seqno_color
+    ldrb    r0, [r1]                        // read color seqno U8 from memory into r0
     bl      prog_display_integer
 
     pop	    {pc}
@@ -450,12 +488,26 @@ find_r_motor:
     // Search for TACHO_MOTOR_TYPE attached to R_MOTOR_PORT, return found flag
     bl      dvcs_search_tacho_type_for_port 
     cmp     r0, #FALSE
-    bne     found_motors
+    bne     find_head_motor
     ldr     r0, =waitrtachostr
     bl      prog_content1
     bl      ev3_tacho_init                  // Not found, reinitialize ev3_tacho desc
     bl      wait_500ms
     b       find_r_motor                    // Delay 500 ms, try again
+
+find_head_motor:
+    mov     r0, #HEAD_MOTOR_TYPE
+    ldr     r1, =seqno_head
+    mov		r2, #0							// starting seqno
+	// Search for TACHO_MOTOR_TYPE starting from motor0, return found flag
+	bl		ev3_search_tacho
+	cmp		r0, #FALSE
+	bne		found_motors					// Motor not found
+    ldr     r0, =waitheadstr
+    bl      prog_content1
+    bl      ev3_tacho_init                  // Not found, reinitialize ev3_tacho desc
+	bl		wait_500ms
+	b		find_head_motor					// Delay 500 ms, try again
 
 found_motors:
     ldr     r0, =foundlefttachostr
@@ -470,6 +522,13 @@ found_motors:
 
     ldr     r1, =seqno_right
     ldrb    r0, [r1]                        // read right motor seqno U8 from memory into r0
+    bl      prog_display_integer
+
+    ldr     r0, =foundheadtachostr
+    bl      prog_display_string
+
+    ldr     r1, =seqno_head
+    ldrb    r0, [r1]                        // read head motor seqno U8 from memory into r0
     bl      prog_display_integer
 
     ldr     r0, =foundtachoendstr
