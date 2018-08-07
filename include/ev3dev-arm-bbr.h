@@ -59,10 +59,19 @@
 	.extern prog_display_hex8
 	.extern prog_display_hex32
 
-	/* common/include/devices.h */
+/* common/include/devices.h */
 	.extern dvcs_search_dc_type_for_port
 	.extern dvcs_search_sensor_type_for_port
 	.extern dvcs_search_servo_type_for_port
 	.extern dvcs_search_tacho_type_for_port
+
+/* Systick constants */
+	.equiv	TICKS_PER_SECOND,  1000000
+	.equiv	NANOSECONDS_PER_TICK, 1000
+
+/* common/include/systick.h */
+	.extern tick_init
+	.extern tick_systick
+
 
 #endif
