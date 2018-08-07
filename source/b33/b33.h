@@ -15,6 +15,8 @@
 
 #ifdef __ASSEMBLY__
 
+#define EVENTLOOP_TICKCOUNT 100000					// 100 ms per event loop
+
 #define L_MOTOR_PORT      OUTPUT_B
 #define L_MOTOR_EXT_PORT  EXT_PORT__NONE_
 #define R_MOTOR_PORT      OUTPUT_C

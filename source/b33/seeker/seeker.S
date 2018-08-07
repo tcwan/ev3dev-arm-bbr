@@ -27,6 +27,10 @@
 #include "ev3dev-arm-bbr.h"
 #include "../b33.h"
 
+// Compilation Debugging Switches
+#undef DEBUG_MIN_MAX
+
+
 /* Standard C Library routines */
 	.extern	random									// <stdlib.h>
 	.extern srandom									// <stdlib.h>
@@ -42,8 +46,6 @@
     .equiv  ROTATION_SCALING, 2
     // Number of LEGO MINDSTORM Sensors
     .equiv  NUM_SENSORS, 2
-	// Size of display output buffer
-	.equiv		DISPLAYBUF_SIZE, 256
 
     .data
     .align
@@ -79,6 +81,8 @@ donestr:        .asciz      "Seeker done!        "
 
 // Need to align the following data, otherwise the string termination is not guaranteed
     .align
+loop_systick:	.word	0					// System Event Loop Starting Systick value
+
 countperrot:    .word   0                   // Tacho count per rotation (360 deg)
                                             // Assume identical for both motors
 touch_val:		.word	0					// Touch sensor input buffer
@@ -379,6 +383,80 @@ stop_tacho:
     .code 32
     .text
     .align
+
+/*****************************************************************************/
+/** movement_selector
+ *
+ *   Setup Limb Movement based on enum input
+ *
+ *   0: straight ahead (both motor forward)
+ *   1: straight back (both motor reverse)
+ *   2: circle to the left (right motor forward)
+ *   3: circle to the right (left motor forward)
+ *
+ *   NOTE: Customize according to robot design
+ *
+ * Parameters:
+ *   r0: Movement type Enum
+ * Returns:
+ *   None
+ *
+ **/
+movement_selector:
+	push	{lr}
+
+case_0_check:
+    cmp		r0, #0
+    bne		case_1_check
+	// Enable Left Motor Forward
+    mov		r0, #TRUE
+    mov		r1, #TRUE
+    bl		motor_config_left
+    // Enable Right Motor Forward
+    mov		r0, #TRUE
+    mov		r1, #TRUE
+    bl		motor_config_right
+	b		exit_movement_selector
+
+case_1_check:
+    cmp		r0, #1
+    bne		case_2_check
+	// Enable Left Motor Reverse
+    mov		r0, #TRUE
+    mov		r1, #FALSE
+    bl		motor_config_left
+    // Enable Right Motor Reverse
+    mov		r0, #TRUE
+    mov		r1, #FALSE
+    bl		motor_config_right
+	b		exit_movement_selector
+
+case_2_check:
+    cmp		r0, #2
+    bne		case_3_check
+	// Disable Left Motor
+    mov		r0, #FALSE
+    mov		r1, #FALSE
+    bl		motor_config_left
+    // Enable Right Motor Forward
+    mov		r0, #TRUE
+    mov		r1, #TRUE
+    bl		motor_config_right
+	b		exit_movement_selector
+
+case_3_check:
+	// Enable Left Motor Forward
+    mov		r0, #TRUE
+    mov		r1, #TRUE
+    bl		motor_config_left
+    // Disable Right Motor
+    mov		r0, #FALSE
+    mov		r1, #FALSE
+    bl		motor_config_right
+
+exit_movement_selector:
+	pop		{pc}
+
 /*****************************************************************************/
 /** wait_500ms
  *    500 ms delay routine
@@ -394,7 +472,6 @@ wait_500ms:
     bl      usleep
     pop     {pc}
 
-/*****************************************************************************/
 /** display_motor_info
  *    Output motor index at row specified by prog_content1
  *
@@ -430,7 +507,6 @@ display_motor_info:
     bl      prog_display_string
  	pop		{pc}
 
-/*****************************************************************************/
 /** display_sensor_info
  *    Output sensor index at row specified by prog_content2
  *
@@ -669,6 +745,28 @@ stop_and_release_motors:
     bl      multi_set_tacho_stop_action_inx
     pop     {pc}
 
+/** update_systick_and_sleep
+ *
+ *   Update event loop systick and sleep until start of next loop
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   None
+ *
+ **/
+update_systick_and_sleep:
+	push	{lr}
+	bl		tick_systick					// returns current systick in r0
+	ldr		r1, =loop_systick
+	ldr		r2, =EVENTLOOP_TICKCOUNT
+	ldr		r3, [r1]						// get current loop starting systick
+	add		r3, r3, r2
+	str		r3, [r1]						// Update next loop starting systick
+	sub		r0, r3, r0						// sleep duration = next loop starting systick - current systick
+	bl		usleep							// Call usleep()
+	pop		{pc}
+
 /** init_robot
  *
  *   Initialize Robot Sensors and Actuators
@@ -681,6 +779,7 @@ stop_and_release_motors:
  **/
 init_robot:
     push    {lr}
+    bl		tick_init
     bl      init_sensors
     bl      init_motors
     bl      setup_motors
@@ -757,6 +856,11 @@ robot_setup:
     mov		r9, #0							// Test movement using movement index in r9
 #endif
 
+	// Configure loop_systick before starting event loop
+	bl		tick_systick					// returns systick in r0
+	ldr		r1, =loop_systick
+	str		r0, [r1]
+
 activation_loop:
     ldr     r0, =waitingstr
     mov		r1, #7							// Row 7
@@ -789,64 +893,9 @@ wait_stinger:
     mov     r0, r9							// Retrieve movement index
 #endif
 
-movement_selector:
-	// Case random() r0[1:0] of:
-	//   0: straight ahead (both motor forward)
-	//   1: straight back (both motor reverse)
-	//   2: circle to the left (right motor forward)
-	//   3: circle to the right (left motor forward)
-case_0_check:
-    cmp		r0, #0
-    bne		case_1_check
-	// Enable Left Motor Forward
-    mov		r0, #TRUE
-    mov		r1, #TRUE
-    bl		motor_config_left
-    // Enable Right Motor Forward
-    mov		r0, #TRUE
-    mov		r1, #TRUE
-    bl		motor_config_right
-    mov     r10, #NUM_MOTORS
-	b		step
+generate_movement:
 
-case_1_check:
-    cmp		r0, #1
-    bne		case_2_check
-	// Enable Left Motor Reverse
-    mov		r0, #TRUE
-    mov		r1, #FALSE
-    bl		motor_config_left
-    // Enable Right Motor Reverse
-    mov		r0, #TRUE
-    mov		r1, #FALSE
-    bl		motor_config_right
-    mov     r10, #NUM_MOTORS
-	b		step
-
-case_2_check:
-    cmp		r0, #2
-    bne		case_3_check
-	// Disable Left Motor
-    mov		r0, #FALSE
-    mov		r1, #FALSE
-    bl		motor_config_left
-    // Enable Right Motor Forward
-    mov		r0, #TRUE
-    mov		r1, #TRUE
-    bl		motor_config_right
-    mov     r10, #1
-	b		step
-
-case_3_check:
-	// Enable Left Motor Forward
-    mov		r0, #TRUE
-    mov		r1, #TRUE
-    bl		motor_config_left
-    // Disable Right Motor
-    mov		r0, #FALSE
-    mov		r1, #FALSE
-    bl		motor_config_right
-    mov     r10, #1
+	bl		movement_selector				// Select movement from random() r0[1:0]
 
 step:
 
@@ -884,13 +933,20 @@ coroutine_dispatcher:
 	cmp		r0, #TRUE
 	beq		robot_cleanup
 
+activation_sleep:
+	bl		update_systick_and_sleep
+
 check_stings:
     subs    r8, r8, #1
+    beq		robot_cleanup					// Continue until sting activations done
 #if 1
     add     r9, r9, #1						// Update movement index
     and		r9, r9, #0x3					// index modulo 4
 #endif
-    bne     activation_loop					// Continue until sting activations done
+
+activation_sleep:
+	bl		update_systick_and_sleep
+    b       activation_loop
 
 robot_cleanup:
     ldr     r0, =donestr
