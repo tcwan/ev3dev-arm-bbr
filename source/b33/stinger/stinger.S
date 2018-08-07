@@ -40,14 +40,19 @@
     .data
     .align
 
-printstr:       .asciz      "Stinger Robot"
-waitltachostr:  .asciz      "Waiting (Left Tacho Port B) \n"
-waitrtachostr:  .asciz      "Waiting (Right Tacho Port C)\n"
-foundlefttachostr:  .asciz  "Tacho: Left ("
-foundrighttachostr: .asciz  "), Right ("
-foundtachoendstr:   .asciz  ")   "
-waittouchstr:   .asciz      "Waiting for Touch Sensor     \n"
-foundtouchstr:  .asciz      "Touch: "
+titlestr:       .asciz  "Stinger Robot"
+waitltachostr:  .asciz  "Waiting (Left Tacho Port B) "
+waitrtachostr:  .asciz  "Waiting (Right Tacho Port C)"
+
+foundmotor0str:	.asciz  "Tacho: L("
+foundmotor1str:	.asciz  "), R("
+foundmotorNstr: .asciz  ")  "
+
+waittouchstr:   .asciz  "Waiting (Touch Sensor)"
+
+foundsensor0str: .asciz	"Input: TCH("
+foundsensorNstr: .asciz	")          "
+
 waitingstr:     .asciz      "Waiting for stinger..."
 donestr:        .asciz      "Stinger done!         "
 
@@ -291,9 +296,63 @@ wait_500ms:
     bl      usleep
     pop     {pc}
 
+/*****************************************************************************/
+/** display_motor_info
+ *    Output motor index at row specified by prog_content1
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   None
+ **/
+display_motor_info:
+    push    {lr}
+    ldr     r0, =foundmotor0str
+    bl      prog_content1
+
+    ldr     r1, =seqno_left
+    ldrb    r0, [r1]                        // read left motor seqno U8 from memory into r0
+    bl      prog_display_integer
+
+    ldr     r0, =foundmotor1str
+    bl      prog_display_string
+
+    ldr     r1, =seqno_right
+    ldrb    r0, [r1]                        // read right motor seqno U8 from memory into r0
+    bl      prog_display_integer
+
+    ldr     r0, =foundmotorNstr
+    bl      prog_display_string
+ 	pop		{pc}
+
+/*****************************************************************************/
+/** display_sensor_info
+ *    Output sensor index at row specified by prog_content2
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   None
+ **/
+display_sensor_info:
+	push	{lr}
+    ldr     r0, =foundsensor0str
+    bl      prog_content2
+
+    ldr     r1, =seqno_touch
+    ldrb    r0, [r1]                        // read touch seqno U8 from memory into r0
+    bl      prog_display_integer
+
+    ldr     r0, =foundsensorNstr
+    bl      prog_display_string
+    pop     {pc}
+
+
 /** init_sensors
  *
  *   Initialize Sensor Subsystem
+ *
+ *   NOTE: Customize according to robot design
  *
  * Parameters:
  *   None
@@ -306,12 +365,15 @@ init_sensors:
 detect_sensor:
     bl      ev3_sensor_init                  // Returns number of sensors detected
     cmp		r0, #1
-    bge		found_a_sensor
+    bge		find_touch_sensor
     ldr     r0, =SLEEP_DURATION_1SEC
     bl      usleep
     b       detect_sensor                    // Loop until at least one sensor detected
 
-found_a_sensor:
+find_touch_sensor:
+    ldr     r0, =waittouchstr
+    bl      prog_content2
+
     mov     r0, #LEGO_EV3_TOUCH
     ldr		r1, =seqno_touch
     mov     r2, #0
@@ -319,14 +381,8 @@ found_a_sensor:
     cmp     r0, #FALSE
     beq     detect_sensor                   // Not found, try again from the beginning
 
-found_touch_sensor:
-    ldr     r0, =foundtouchstr
-    bl      prog_content2
-
-    ldr     r1, =seqno_touch
-    ldrb    r0, [r1]                        // read touch seqno U8 from memory into r0
-    bl      prog_display_integer
-
+found_sensors:
+	bl		display_sensor_info
     pop	    {pc}
 
 /** init_motors
@@ -335,6 +391,8 @@ found_touch_sensor:
  *
  *   Setup actuators for two TACHO_MOTOR_TYPE Motors
  *   attached to L_MOTOR_PORT and R_MOTOR_PORT respectively.
+ *
+ *   NOTE: Customize according to robot design
  *
  * Parameters:
  *   None
@@ -383,27 +441,14 @@ find_r_motor:
     b       find_r_motor                    // Delay 500 ms, try again
 
 found_motors:
-    ldr     r0, =foundlefttachostr
-    bl      prog_content1
-
-    ldr     r1, =seqno_left
-    ldrb    r0, [r1]                        // read left motor seqno U8 from memory into r0
-    bl      prog_display_integer
-
-    ldr     r0, =foundrighttachostr
-    bl      prog_display_string
-
-    ldr     r1, =seqno_right
-    ldrb    r0, [r1]                        // read right motor seqno U8 from memory into r0
-    bl      prog_display_integer
-
-    ldr     r0, =foundtachoendstr
-    bl      prog_display_string
+	bl		display_motor_info
     pop     {pc}
 
 /** setup_motors
  *
  *   Configure Motor Settings
+ *
+ *   NOTE: Customize according to robot design
  *
  * Parameters:
  *   None
@@ -459,6 +504,8 @@ setup_motors:
  *   Disable Brake Locks if previously configured
  *   to allow the motors to coast (move when rotated).
  *
+ *   NOTE: Customize according to robot design
+ *
  * Parameters:
  *   None
  * Returns:
@@ -510,7 +557,7 @@ init_robot:
 main:
     push    {lr}
     bl      prog_init
-    ldr     r0, =printstr
+    ldr     r0, =titlestr
     bl      prog_title
     bl      wait_500ms
 
@@ -538,8 +585,7 @@ activation_loop:
     bl      prog_display_integer_aligned
 
 wait_stinger:
-    ldr     r0, =SLEEP_DURATION_10MS
-    bl      usleep                      	// Check every 10 ms
+	WAIT_10MS								// Delay 10 ms
 
     mov     r0, #0
     mov		r1, r4							// touch sensor sequence number
@@ -571,8 +617,8 @@ coroutine_dispatcher:
     // Setup number of motors for coroutine dispatcher
     mov         r7, #NUM_MOTORS
 
-    ldr         r0, =SLEEP_DURATION_10MS
-    bl          usleep                      // Check every 10 ms
+	WAIT_10MS								// Delay 10 ms
+
     CORO_CALL   motor_left                  // Complete one 360 deg rotation
     cmp         r0, #CO_END
     subeq       r7, r7, #1

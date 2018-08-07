@@ -42,23 +42,29 @@
     .equiv  ROTATION_SCALING, 2
     // Number of LEGO MINDSTORM Sensors
     .equiv  NUM_SENSORS, 2
+	// Size of display output buffer
+	.equiv		DISPLAYBUF_SIZE, 256
 
     .data
     .align
 
-printstr:       .asciz      "Seeker Robot"
-waitltachostr:  .asciz      "Waiting (Left Tacho Port B) \n"
-waitrtachostr:  .asciz      "Waiting (Right Tacho Port C)\n"
-waitheadstr:    .asciz      "Waiting for Head Motor      \n"
-foundlefttachostr:  .asciz  "Tacho: Left ("
-foundrighttachostr: .asciz  "), Right ("
-foundheadtachostr:  .asciz  "), Head ("
-foundtachoendstr:   .asciz  ")"
-waittouchstr:   .asciz      "Waiting for Touch Sensor     \n"
-waitcolorstr:   .asciz      "Waiting for Color Sensor     \n"
+titlestr:       .asciz  "Seeker Robot"
+waitltachostr:  .asciz  "Waiting (Left Tacho Port B)  "
+waitrtachostr:  .asciz  "Waiting (Right Tacho Port C) "
+waitheadstr:    .asciz  "Waiting (Head Motor any port)"
 
-foundtouchstr:  .asciz      "Touch: "
-foundcolorstr:  .asciz      "Color: "
+foundmotor0str:	.asciz  "Tacho: L("
+foundmotor1str:	.asciz  "), R("
+foundmotor2str: .asciz  "), H("
+foundmotorNstr: .asciz  ")  "
+
+waittouchstr:   .asciz  "Waiting (Touch Sensor)"
+waitcolorstr:   .asciz  "Waiting (Color Sensor)"
+
+foundsensor0str: .asciz	"Input: TCH("
+foundsensor1str: .asciz	"), CLR("
+foundsensorNstr: .asciz	")     "
+
 
 // Behavior Status Strings
 behavior_idlestr:       .asciz "Idle       "
@@ -80,17 +86,22 @@ touch_val:		.word	0					// Touch sensor input buffer
 /* Coroutine synchronization variable */
 num_running_motors: .word    0
 
+// Vector of actuator seqnos needed by multi_set_tacho_XXX()
 
-motors_vec:                     // Vector of motor seqnos needed by multi_set_tacho_XXX()
+/* Vector of all actuator motors (including head and limb motors) */
+actuators_vec:
+seqno_head:     .byte   0
+/* Vector of all limb motors */
+motors_vec:
 seqno_right:    .byte   0                   // Sequence number for right motor
 seqno_left:     .byte   0                   // Sequence number for left motor
 endmotors:      .byte   DESC_LIMIT          // Vector Terminator
 
     .equiv      motors_vec_len, . - motors_vec
 
-seqno_head:     .byte   0
 seqno_touch:    .byte   0
 seqno_color:    .byte   0
+keypress:		.byte	EV3_KEY__NONE_
 
 
 /*****************************************************************************/
@@ -383,9 +394,77 @@ wait_500ms:
     bl      usleep
     pop     {pc}
 
+/*****************************************************************************/
+/** display_motor_info
+ *    Output motor index at row specified by prog_content1
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   None
+ **/
+display_motor_info:
+    push    {lr}
+    ldr     r0, =foundmotor0str
+    bl      prog_content1
+
+    ldr     r1, =seqno_left
+    ldrb    r0, [r1]                        // read left motor seqno U8 from memory into r0
+    bl      prog_display_integer
+
+    ldr     r0, =foundmotor1str
+    bl      prog_display_string
+
+    ldr     r1, =seqno_right
+    ldrb    r0, [r1]                        // read right motor seqno U8 from memory into r0
+    bl      prog_display_integer
+
+    ldr     r0, =foundmotor2str
+    bl      prog_display_string
+
+    ldr     r1, =seqno_head
+    ldrb    r0, [r1]                        // read head motor seqno U8 from memory into r0
+    bl      prog_display_integer
+
+    ldr     r0, =foundmotorNstr
+    bl      prog_display_string
+ 	pop		{pc}
+
+/*****************************************************************************/
+/** display_sensor_info
+ *    Output sensor index at row specified by prog_content2
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   None
+ **/
+display_sensor_info:
+	push	{lr}
+    ldr     r0, =foundsensor0str
+    bl      prog_content2
+
+    ldr     r1, =seqno_touch
+    ldrb    r0, [r1]                        // read touch seqno U8 from memory into r0
+    bl      prog_display_integer
+
+    ldr     r0, =foundsensor1str
+    bl      prog_display_string
+
+    ldr     r1, =seqno_color
+    ldrb    r0, [r1]                        // read color seqno U8 from memory into r0
+    bl      prog_display_integer
+
+    ldr     r0, =foundsensorNstr
+    bl      prog_display_string
+    pop     {pc}
+
+
 /** init_sensors
  *
  *   Initialize Sensor Subsystem
+ *
+ *   NOTE: Customize according to robot design
  *
  * Parameters:
  *   None
@@ -398,14 +477,14 @@ init_sensors:
 detect_sensor:
     bl      ev3_sensor_init                  // Returns number of sensors detected
     cmp		r0, #NUM_SENSORS
-    bge		found_a_sensor
+    bge		find_touch_sensor
     ldr     r0, =SLEEP_DURATION_1SEC
     bl      usleep
     b       detect_sensor                    // Loop until at least one sensor detected
 
-found_a_sensor:
+find_touch_sensor:
     ldr     r0, =waittouchstr
-    bl      prog_content1
+    bl      prog_content2
 
     mov     r0, #LEGO_EV3_TOUCH
     ldr		r1, =seqno_touch
@@ -414,9 +493,9 @@ found_a_sensor:
     cmp     r0, #FALSE
     beq     detect_sensor                   // Not found, try again from the beginning
 
-found_touch_sensor:
+find_color_sensor:
 	ldr		r0, =waitcolorstr
-	bl		prog_content1
+	bl		prog_content2
 
     mov     r0, #LEGO_EV3_COLOR
     ldr		r1, =seqno_color
@@ -425,21 +504,8 @@ found_touch_sensor:
     cmp     r0, #FALSE
     beq     detect_sensor                   // Not found, try again from the beginning
 
-found_color_sensor:
-    ldr     r0, =foundtouchstr
-    bl      prog_content2
-
-    ldr     r1, =seqno_touch
-    ldrb    r0, [r1]                        // read touch seqno U8 from memory into r0
-    bl      prog_display_integer
-
-    ldr     r0, =foundcolorstr
-    bl      prog_display_string
-
-    ldr     r1, =seqno_color
-    ldrb    r0, [r1]                        // read color seqno U8 from memory into r0
-    bl      prog_display_integer
-
+found_sensors:
+	bl		display_sensor_info
     pop	    {pc}
 
 /** init_motors
@@ -448,6 +514,10 @@ found_color_sensor:
  *
  *   Setup actuators for two TACHO_MOTOR_TYPE Motors
  *   attached to L_MOTOR_PORT and R_MOTOR_PORT respectively.
+ *
+ *   Setup actuator for HEAD_MOTOR_TYPE, attached to any port
+ *
+ *   NOTE: Customize according to robot design
  *
  * Parameters:
  *   None
@@ -510,34 +580,14 @@ find_head_motor:
 	b		find_head_motor					// Delay 500 ms, try again
 
 found_motors:
-    ldr     r0, =foundlefttachostr
-    bl      prog_content1
-
-    ldr     r1, =seqno_left
-    ldrb    r0, [r1]                        // read left motor seqno U8 from memory into r0
-    bl      prog_display_integer
-
-    ldr     r0, =foundrighttachostr
-    bl      prog_display_string
-
-    ldr     r1, =seqno_right
-    ldrb    r0, [r1]                        // read right motor seqno U8 from memory into r0
-    bl      prog_display_integer
-
-    ldr     r0, =foundheadtachostr
-    bl      prog_display_string
-
-    ldr     r1, =seqno_head
-    ldrb    r0, [r1]                        // read head motor seqno U8 from memory into r0
-    bl      prog_display_integer
-
-    ldr     r0, =foundtachoendstr
-    bl      prog_display_string
+	bl		display_motor_info
     pop     {pc}
 
 /** setup_motors
  *
- *   Configure Motor Settings
+ *   Configure Motor Settings for limb and head motors
+ *
+ *   NOTE: Customize according to robot design
  *
  * Parameters:
  *   None
@@ -547,6 +597,8 @@ found_motors:
  **/
 setup_motors:
     push    {r4, r5, lr}
+
+    // Limb motor configuration
     ldr     r4, =countperrot                // Pointer to variable
     ldr     r5, =motors_vec                 // setup motor vector
 
@@ -570,6 +622,24 @@ setup_motors:
     mov     r1, #TACHO_STOP_MODE            // How to stop the motor
     bl      multi_set_tacho_stop_action_inx
 
+	// Head motor configuration
+	ldr		r0, =seqno_head
+	ldrb	r4, [r0]						// read head motor seqno U8 from memory into r4
+
+    // Setup Ramp/Up down duration (ms)
+    mov		r0, r4							// head seqno
+    ldr     r1, =HEAD_RAMPTIME_MS           // Ramp up duration (ms)
+    bl      set_tacho_ramp_up_sp
+
+    mov		r0, r4							// head seqno
+    ldr     r1, =HEAD_RAMPTIME_MS           // Ramp up duration (ms)
+    bl      set_tacho_ramp_down_sp
+
+   // Setup head stop mode
+    mov     r0, r4                          // head seqno
+    mov     r1, #HEAD_STOP_MODE             // How to stop the motor
+    bl      set_tacho_stop_action_inx
+
     pop     {r4, r5, pc}
 
 /** stop_and_release_motors
@@ -579,6 +649,10 @@ setup_motors:
  *   Disable Brake Locks if previously configured
  *   to allow the motors to coast (move when rotated).
  *
+ *   This routine will affect all three attached motors.
+ *
+ *   NOTE: Customize according to robot design
+ *
  * Parameters:
  *   None
  * Returns:
@@ -587,10 +661,10 @@ setup_motors:
  **/
 stop_and_release_motors:
     push    {lr}
-    ldr     r0, =motors_vec                 // setup motor vector
+    ldr     r0, =actuators_vec              // setup actuators vector
     mov     r1, #TACHO_STOP                 // set run mode
     bl      multi_set_tacho_command_inx
-    ldr     r0, =motors_vec                 // setup motor vector
+    ldr     r0, =actuators_vec              // setup actuators vector
     mov     r1, #TACHO_COAST                // release motor
     bl      multi_set_tacho_stop_action_inx
     pop     {pc}
@@ -612,6 +686,37 @@ init_robot:
     bl      setup_motors
     pop     {pc}
 
+/** check_exit
+ *
+ *   Check status of button to see if it is being pressed.
+ *
+ *   Note: ev3_read_keys check the instantaneous keypress state.
+ *         It does not remember / buffer previous key presses
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   r0: TRUE if exit pressed, FALSE if not
+ *
+ **/
+check_exit:
+	push	{lr}
+	ldr		r0, =keypress					// Buffer address for keypress
+	bl		ev3_read_keys					// Check if key pressed
+	ldr		r0, =keypress
+	ldrb	r0, [r0]						// Retrieve keypress
+	cmp		r0, #EV3_KEY__NONE_
+	beq		done_exit_check					// Return FALSE (EV3_KEY__NONE_)
+
+check_back_pressed:
+	ands	r0, r0, #EV3_KEY_BACK			// Single bit bitmask
+	beq		done_exit_check					// Return FALSE if bit cleared (== 0)
+
+back_key_pressed:
+	mov		r0, #TRUE						// Back key pressed, return TRUE
+
+done_exit_check:
+	pop		{pc}
 
 /*****************************************************************************/
 
@@ -630,7 +735,7 @@ init_robot:
 main:
     push    {lr}
     bl      prog_init
-    ldr     r0, =printstr
+    ldr     r0, =titlestr
     bl      prog_title
     bl      wait_500ms
 
@@ -662,8 +767,7 @@ activation_loop:
     bl      prog_display_integer_aligned
 
 wait_stinger:
-    ldr     r0, =SLEEP_DURATION_10MS
-    bl      usleep                      	// Check every 10 ms
+	WAIT_10MS								// Delay 10 ms
 
     mov     r0, #0
     mov		r1, r4							// touch sensor sequence number
@@ -772,6 +876,13 @@ coroutine_dispatcher:
 
     subs    r6, r6, #1                      // Continue until movement done
     bgt     step
+
+	/* This is only needed if we're running in the debugger on the remote console.
+	   Brickman will automatically exit if pressed-and-held for 2 seconds */
+	// Check if Exit button pressed
+	bl		check_exit
+	cmp		r0, #TRUE
+	beq		robot_cleanup
 
 check_stings:
     subs    r8, r8, #1
