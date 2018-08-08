@@ -187,9 +187,6 @@ void prog_init(void)
 {
 	/* Program Initialization Routine */
 
-	alrt_hello(audible);
-	system("setfont " ARM_BBR_TERMFONT);		// Use legible font for status messages
-
 	// Check if we're running on Frameb Buffer Console, or else in Debugger w/o ncurses support.
 	char ttynamestr[BUFSIZE];
 	if (0 == ttyname_r(STDOUT_FILENO, ttynamestr, sizeof(ttynamestr))) {
@@ -203,6 +200,8 @@ void prog_init(void)
 
 	term_hidecursor();
 	term_clearscr();
+	system("setfont " ARM_BBR_TERMFONT);		// Use legible font for status messages
+	alrt_hello(audible);
 }
 
 void prog_exit(void)

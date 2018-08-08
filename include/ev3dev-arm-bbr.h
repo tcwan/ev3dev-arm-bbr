@@ -67,6 +67,7 @@
 
 /* Systick constants */
 	.equiv	TICKS_PER_SECOND,  1000000
+	.equiv	TICKS_PER_MSEC,       1000
 	.equiv	NANOSECONDS_PER_TICK, 1000
 
 /* common/include/systick.h */
