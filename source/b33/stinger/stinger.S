@@ -585,9 +585,7 @@ robot_setup:
     mov		r8, #NUM_STINGS					// Number of activations
 
 activation_loop:
-    ldr     r0, =waitingstr
-    mov		r1, #7							// Row 7
-    bl      prog_contentX
+	DISPLAY_ROBOT_STATE waitingstr
 
     mov     r0, r8                          // Display sting counter
     mov     r1, #2                          // Right aligned 2 digit counter
@@ -648,10 +646,7 @@ sting_continue:
     bne     activation_loop					// Continue until sting activations done
 
 robot_cleanup:
-    ldr     r0, =exitstr
-    mov		r1, #7							// Row 7
-    bl      prog_contentX
-
+	DISPLAY_ROBOT_STATE exitstr
     bl      stop_and_release_motors
 
 /************************* End Customization Here ****************************/

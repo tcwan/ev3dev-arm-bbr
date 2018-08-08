@@ -17,6 +17,8 @@
 
 #include "ev3dev-arm-bbr.h"
 
+#define ROBOT_STATE_ROW		7						// Robot State Display Row on output screen
+
 #define EVENTLOOP_TICKCOUNT 100 * TICKS_PER_MSEC	// 100 ms per event loop
 
 #define L_MOTOR_PORT      OUTPUT_B
@@ -41,7 +43,7 @@
  *    Macro to call usleep for 10 ms
  *
  * Parameters:
- *   r0: number of microseconds to sleep
+ *   None
  * Returns:
  *   r0: 0 if successful, -1 if error (errno set)
  *
@@ -52,4 +54,23 @@
     ldr     r0, =SLEEP_DURATION_10MS
     bl      usleep
 	.endm
+
+/** DISPLAY_ROBOT_STATE
+ *
+ *    Macro to Display status on LCD screen
+ *
+ * Parameters:
+ *   status_str: Address of output string
+ * Returns:
+ *   None
+ *
+ **/
+	.extern	prog_contentX
+
+	.macro	DISPLAY_ROBOT_STATE	status_str
+    ldr     r0, =\status_str
+    mov		r1, #ROBOT_STATE_ROW
+    bl      prog_contentX
+	.endm
+
 #endif

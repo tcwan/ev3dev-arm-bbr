@@ -85,7 +85,6 @@
 /*****************************************************************************/
 
 titlestr:       .asciz  "Seeker Robot"
-exitstr:		.asciz  "Exiting Seeker"
 waittachostr:	.asciz	"Detecting tacho motors......."
 waitltachostr:  .asciz  "Waiting (Left Tacho Port B)  "
 waitrtachostr:  .asciz  "Waiting (Right Tacho Port C) "
@@ -110,6 +109,7 @@ behavior_idlestr:       .asciz "Idle       "
 behavior_lowerheadstr:  .asciz "Lower Head "
 behavior_followpathstr: .asciz "Follow Path"
 behavior_escapestr:     .asciz "Escape     "
+exitstr:				.asciz "Exiting Seeker"
 
 
 // Need to align the following data, otherwise the string termination is not guaranteed
@@ -375,6 +375,41 @@ motor_end_\side:
 	ldrb	r0, [r0]
 	.endm
 
+
+/** DEFINE_BEHAVIOR_ROUTINE
+ *    Escape Behavior (Highest Priority)
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   None
+ **/
+ 	.macro	DEFINE_BEHAVIOR_ROUTINE behavior
+bhvr_\behavior:
+	push	{lr}
+	get_bhvr_suppress				// r0: Supressed flag (Boolean)
+	cmp		r0, #FALSE
+	beq		check_\behavior			// Not suppressed, so skip reset
+
+reset_\behavior:
+	CORO_CONTEXT_INIT \behavior		// reset behavior coroutine
+	b		exit_\behavior
+
+check_\behavior:
+	bl		trigger_\behavior		// Check activation conditions
+	cmp		r0, #FALSE
+	beq		exit_\behavior			// Not activated, so skip coroutine call
+
+call_\behavior:
+	CORO_CALL	\behavior
+	set_bhvr_suppress TRUE			// Suppress other behaviors
+
+exit_\behavior:
+	pop		{pc}
+
+	.endm
+
+
 /** record_systick
  *
  *    Macro to store current systick to systick_var
@@ -615,7 +650,151 @@ done_sensor_color:
     bl		get_sensor_value
  	CORO_END
 
+/*****************************************************************************/
+/** Behavior Coroutine escape
+ *
+ * Coroutine for Behavior escape
+ *
+ */
+    // Coroutine Variables
+    .data
+    .align
+ 	CORO_CONTEXT escape
 
+    .code 32
+    .text
+    .align
+
+    // Trigger routine
+    // Returns TRUE if conditions met, FALSE otherwise
+trigger_escape:
+	push	{lr}
+	mov		r0, #TRUE
+	pop		{pc}
+
+ 	CORO_START	escape
+loop_escape:
+	DISPLAY_ROBOT_STATE behavior_escapestr
+	CORO_YIELD
+	b	loop_escape
+ 	CORO_END
+
+/*****************************************************************************/
+/** Behavior Coroutine followpath
+ *
+ * Coroutine for Behavior followpath
+ *
+ */
+    // Coroutine Variables
+    .data
+    .align
+ 	CORO_CONTEXT followpath
+
+    .code 32
+    .text
+    .align
+
+    // Trigger routine
+    // Returns TRUE if conditions met, FALSE otherwise
+trigger_followpath:
+	push	{lr}
+	mov		r0, #TRUE
+	pop		{pc}
+
+ 	CORO_START	followpath
+loop_followpath:
+	DISPLAY_ROBOT_STATE behavior_followpathstr
+	CORO_YIELD
+	b	loop_followpath
+ 	CORO_END
+
+/*****************************************************************************/
+/** Behavior Coroutine lower_head
+ *
+ * Coroutine for Behavior lower_head
+ *
+ */
+    // Coroutine Variables
+    .data
+    .align
+ 	CORO_CONTEXT lower_head
+
+    .code 32
+    .text
+    .align
+
+    // Trigger routine
+    // Returns TRUE if conditions met, FALSE otherwise
+trigger_lower_head:
+	push	{lr}
+	mov		r0, #TRUE
+	pop		{pc}
+
+ 	CORO_START	lower_head
+loop_lower_head:
+	DISPLAY_ROBOT_STATE behavior_lowerheadstr
+	CORO_YIELD
+	b		loop_lower_head
+ 	CORO_END
+
+/*****************************************************************************/
+/** Behavior Coroutine idle
+ *
+ * Coroutine for Behavior idle
+ *
+ */
+    // Coroutine Variables
+    .data
+    .align
+ 	CORO_CONTEXT idle
+
+    .code 32
+    .text
+    .align
+
+ 	CORO_START	idle
+loop_idle:
+	DISPLAY_ROBOT_STATE behavior_idlestr
+	CORO_YIELD
+	b		loop_idle
+ 	CORO_END
+
+
+/*****************************************************************************/
+/* Behavior Routines
+/*****************************************************************************/
+
+    .code 32
+    .text
+    .align
+
+	DEFINE_BEHAVIOR_ROUTINE escape		// Highest priority
+	DEFINE_BEHAVIOR_ROUTINE followpath
+	DEFINE_BEHAVIOR_ROUTINE lower_head
+
+/** bhvr_idle
+ *    Idle Behavior (Lowest Priority)
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   None
+ **/
+bhvr_idle:
+	push	{lr}
+	get_bhvr_suppress				// r0: Supressed flag (Boolean)
+	cmp		r0, #TRUE
+	beq		exit_idle
+
+call_idle:
+	CORO_CONTEXT_INIT	idle		// Reset idle context
+	CORO_CALL	idle				// Always activates
+
+exit_idle:
+	pop		{pc}
+
+/*****************************************************************************/
+/* Actuator Routines
 /*****************************************************************************/
 
     .code 32
@@ -708,6 +887,31 @@ move_stop:
 
 exit_movement_selector:
 	pop		{pc}
+
+/** actuator_head
+ *    head actuator controller
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   None
+ **/
+actuator_head:
+    push    {lr}
+    pop     {pc}
+
+/** actuator_limbs
+ *    left and right limb actuator controller
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   None
+ **/
+actuator_limbs:
+    push    {lr}
+    pop     {pc}
+
 
 /*****************************************************************************/
 /** wait_500ms
@@ -1134,11 +1338,13 @@ done_exit_check:
  * Returns:
  *   None
  *
+ * Register r4 is used as coroutine loop sensor coroutine counter
  **/
 input_controller:
     push    {r4, lr}
 
 /************************ Begin Customization Here ***************************/
+
 	CORO_CONTEXT_INIT sensor_color			// reset color input gathering
 	CORO_CONTEXT_INIT sensor_touch			// reset touch input gathering
 
@@ -1199,12 +1405,14 @@ behavior_dispatcher:
 
 /************************ Begin Customization Here ***************************/
 
-/************************* End Customization Here ****************************/
-	// Clear bhvr_suppress flag
-	ldr		r1, =bhvr_suppress
-	mov		r0, #FALSE
-	strb	r0, [r1]
+	bl		bhvr_escape
+	bl		bhvr_followpath
+	bl		bhvr_lower_head
+	bl		bhvr_idle			// Idle should always be the lowest priority behavior
 
+/************************* End Customization Here ****************************/
+
+	set_bhvr_suppress	FALSE	// Clear bhvr_suppress flag
 	pop		{pc}
 
 /** actuator_controller
@@ -1221,6 +1429,9 @@ actuator_controller:
     push    {lr}
 
 /************************ Begin Customization Here ***************************/
+
+	bl		actuator_head
+	bl		actuator_limbs
 
 /************************* End Customization Here ****************************/
 
@@ -1277,10 +1488,7 @@ event_sleep:
     b       event_loop
 
 robot_cleanup:
-    ldr     r0, =exitstr
-    mov		r1, #7							// Row 7
-    bl      prog_contentX
-
+	DISPLAY_ROBOT_STATE exitstr
     bl      stop_and_release_motors
 
 /************************* End Customization Here ****************************/
