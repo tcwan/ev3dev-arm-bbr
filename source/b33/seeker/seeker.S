@@ -24,7 +24,6 @@
 #include "ev3_port.h"
 #include "ev3_tacho.h"
 #include "ev3_sensor.h"
-#include "ev3dev-arm-bbr.h"
 #include "../b33.h"
 
 // Compilation Debugging Switches
@@ -36,21 +35,58 @@
 	.extern srandom									// <stdlib.h>
 	.extern getpid									// <unistd.h>
 
-    // Number of stinger activations
-    .equiv  NUM_STINGS, 4
-    // Number of steps to take per activation
-    .equiv  NUM_STEPS, 3
+/* Min-max routine */
+	.extern min_max_u32
+
+/*****************************************************************************/
+/* Program Specific Defines
+/*****************************************************************************/
+    // Number of LEGO MINDSTORM Sensors
+    .equiv  NUM_SENSORS, 2
+     // Total number of LEGO MINDSTORM Large and Medium Servo Motors
+    .equiv  NUM_ACTUATORS, 3
     // Number of LEGO MINDSTORM Large Servo Motors
     .equiv  NUM_MOTORS, 2
     // Scaling factor in no. of right bitshifts for countperrot (ASR 2 == div. 4 [90 deg])
     .equiv  ROTATION_SCALING, 2
-    // Number of LEGO MINDSTORM Sensors
-    .equiv  NUM_SENSORS, 2
+
+    // Color Sensor Parameters
+	.equiv	NUM_COLOR_READINGS, 5
+	.equiv	SIZE_COLOR_READING, 4								// 32-bit values
+	.equiv	COLOR_READ_INTERVAL, 10 * TICKS_PER_MSEC			// 10 ms
+
+/*****************************************************************************/
+/* Enums
+/*****************************************************************************/
+    // Robot State Enums
+    ENUM_0		ROBOT_QUIT
+    ENUM_N		ROBOT_IDLE
+    ENUM_N		ROBOT_LOWER_HEAD
+    ENUM_N		ROBOT_FOLLOW_PATH
+    ENUM_N		ROBOT_ESCAPE
+
+    // Movement Enums
+    ENUM_0		MOVE_STOP
+    ENUM_N		MOVE_FORWARD
+    ENUM_N		MOVE_REVERSE
+    ENUM_N		MOVE_LEFT
+    ENUM_N		MOVE_RIGHT
+
+    // Head Position Enums
+    ENUM_0		HEAD_DOWN
+    ENUM_N		HEAD_UP
+    ENUM_N		HEAD_MOVING_DOWN
+    ENUM_N		HEAD_MOVING_UP
 
     .data
     .align
+/*****************************************************************************/
+/* Text Strings
+/*****************************************************************************/
 
 titlestr:       .asciz  "Seeker Robot"
+exitstr:		.asciz  "Exiting Seeker"
+waittachostr:	.asciz	"Detecting tacho motors......."
 waitltachostr:  .asciz  "Waiting (Left Tacho Port B)  "
 waitrtachostr:  .asciz  "Waiting (Right Tacho Port C) "
 waitheadstr:    .asciz  "Waiting (Head Motor any port)"
@@ -60,6 +96,7 @@ foundmotor1str:	.asciz  "), R("
 foundmotor2str: .asciz  "), H("
 foundmotorNstr: .asciz  ")  "
 
+waitsensorstr:  .asciz  "Detecting sensors....."
 waittouchstr:   .asciz  "Waiting (Touch Sensor)"
 waitcolorstr:   .asciz  "Waiting (Color Sensor)"
 
@@ -74,24 +111,43 @@ behavior_lowerheadstr:  .asciz "Lower Head "
 behavior_followpathstr: .asciz "Follow Path"
 behavior_escapestr:     .asciz "Escape     "
 
-#if 1
-waitingstr:     .asciz      "Waiting for input..."
-donestr:        .asciz      "Seeker done!        "
-#endif
 
 // Need to align the following data, otherwise the string termination is not guaranteed
     .align
+/*****************************************************************************/
+/* Program Specific Variables (word aligned)
+/*****************************************************************************/
+/* Timing and Systick related parameters */
 loop_systick:	.word	0					// System Event Loop Starting Systick value
+loop_exceeded:	.word	0					// System Event Loop Duration Exceed Count
 
-countperrot:    .word   0                   // Tacho count per rotation (360 deg)
-                                            // Assume identical for both motors
+color_last_systick:	.word	0				// Color Sensor Last Reading Systick value
+
+/* Touch Sensor Parameters */
 touch_val:		.word	0					// Touch sensor input buffer
+
+/* Color Sensor Parameters */
+color_intensity_min:   .word 0
+color_intensity_max:   .word 0
+color_intensity_array: .space	(NUM_COLOR_READINGS * SIZE_COLOR_READING), 0x0		// 32-bit values
 
 /* Coroutine synchronization variable */
 num_running_motors: .word    0
 
-// Vector of actuator seqnos needed by multi_set_tacho_XXX()
+/* Motor Rotation related parameter */
+countperrot:    .word   0                   // Tacho count per rotation (360 deg)
+                                            // Assume identical for both motors
 
+/*****************************************************************************/
+/* Device Sequence Numbers used by ev3dev-c
+/*****************************************************************************/
+
+/* Vector of seqnos needed by multi_set_tacho_XXX()
+ *    The data structure is arranged as a nested structure
+ *    actuators_vec include all motors for the robot, while
+ *    motors_vec includes the limb motors.
+ *    The vector terminator is shared by both vectors
+ */
 /* Vector of all actuator motors (including head and limb motors) */
 actuators_vec:
 seqno_head:     .byte   0
@@ -102,11 +158,22 @@ seqno_left:     .byte   0                   // Sequence number for left motor
 endmotors:      .byte   DESC_LIMIT          // Vector Terminator
 
     .equiv      motors_vec_len, . - motors_vec
+    .equiv		actuators_vec_len, . - actuators_vec
 
 seqno_touch:    .byte   0
 seqno_color:    .byte   0
+
+/*****************************************************************************/
+/* Program Specific Variables (byte aligned)
+/*****************************************************************************/
+/* EV3 Keypress input variable */
 keypress:		.byte	EV3_KEY__NONE_
 
+/* Robot State variable */
+robot_state:	.byte	ROBOT_IDLE
+
+/* Behavior Suppression Boolean */
+bhvr_suppress:	.byte	TRUE
 
 /*****************************************************************************/
 /* motor_xxxx Coroutine Macro Definition
@@ -275,9 +342,86 @@ motor_end_\side:
     .endm
 /*****************************************************************************/
 
+/** set_bhvr_suppress
+ *
+ *    Macro to set bhvr_suppress
+ *
+ * Parameters:
+ *   flag: Boolean (TRUE or FALSE)
+ * Returns:
+ *   None
+ *
+ * Registers r0 and r1 are modified
+ *
+ **/
+	.macro	set_bhvr_suppress	condition
+	ldr		r1, =bhvr_suppress
+	mov		r0, #\condition
+	strb	r0, [r1]
+	.endm
+
+/** get_bhvr_suppress
+ *
+ *    Macro to get bhvr_suppress
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   r0: bhvr_suppress (TRUE or FALSE)
+ *
+ **/
+	.macro	get_bhvr_suppress
+	ldr		r0, =bhvr_suppress
+	ldrb	r0, [r0]
+	.endm
+
+/** record_systick
+ *
+ *    Macro to store current systick to systick_var
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   None
+ *
+ * Registers r0 and r1 are modified
+ *
+ **/
+	.macro	record_systick	systick_var
+	bl		tick_systick				// returns current systick in r0
+ 	ldr		r1, =\systick_var
+ 	str		r0, [r1]					// record systick for current reading
+	.endm
+
     .code 32
     .text
     .align
+/*****************************************************************************/
+/* Utiilty Functions to support sensor_xxxx Coroutines
+/*****************************************************************************/
+/** has_color_interval_elapsed
+ *
+ *    Last Color Sensor Reading Interval Check
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   r0: TRUE if reading interval exceeded, else FALSE
+ *
+ **/
+has_color_interval_elapsed:
+    push    {lr}
+	bl		tick_systick					// returns current systick in r0
+
+	ldr		r1, =color_last_systick
+	ldr		r2, =COLOR_READ_INTERVAL
+	ldr		r3, [r1]						// Retrieve Color Sensor last reading systick
+	add		r3, r3, r2						// New Color Sensor read time
+	cmp		r0, r3							// Compare current sytick to target color sensor read time
+	movlt	r0, #FALSE
+	movge	r0, #TRUE
+	pop		{pc}
+
 /*****************************************************************************/
 /* Utiilty Functions to support motor_xxxx Coroutine Macros
 /*****************************************************************************/
@@ -379,6 +523,100 @@ stop_tacho:
     DEFINE_COROUTINE_MOTOR right
 
 /*****************************************************************************/
+/** motor_head
+ *
+ * Coroutine for Head Control
+ *
+ */
+    // Coroutine Variables for motor_head
+    .data
+    .align
+    CORO_LOCAL   head_pos, byte, 0
+
+    .align
+ 	CORO_CONTEXT motor_head
+
+    .code 32
+    .text
+    .align
+
+ 	CORO_START	motor_head
+ 	CORO_END
+
+/*****************************************************************************/
+/** sensor_color
+ *
+ * Coroutine for Color Sensor Inputs
+ *
+ */
+    // Coroutine Variables for sensor_color
+    .data
+    .align
+    CORO_LOCAL	 color_index, byte, 0
+
+    .align
+ 	CORO_CONTEXT sensor_color
+
+    .code 32
+    .text
+    .align
+
+ 	CORO_START	sensor_color
+
+ 	ldr		r1, =color_index
+ 	mov		r0, #NUM_COLOR_READINGS
+ 	strb	r0, [r1]					// initialize color_index
+
+
+ next_color_reading:
+ 	push	{r4, r5}					// preserve temporary variable registers
+ 	ldr		r5, =color_index
+ 	ldrb	r4, [r5]					// retrieve color_index into r4
+ 	sub		r4, r4, #1					// point to current index
+ 	strb	r4, [r5]					// update current color_index in memory
+
+	record_systick color_last_systick	// record systick for current color sensor reading
+ 	mov		r0, #0						// value index
+ 	ldr		r1, =seqno_color
+ 	ldr		r2, =color_intensity_array
+	add		r2, r2, r4, lsl #2			// setup address pointer for input value (index for 32-bit integer)
+ 	bl		get_sensor_value
+
+	cmp		r4, #0						// have we collected all of them?
+ 	pop		{r4, r5}					// restore temporary variable registers
+ 	beq		done_sensor_color
+
+wait_next_reading:
+ 	CORO_WAIT	has_color_interval_elapsed
+ 	b		next_color_reading
+
+done_sensor_color:
+ 	CORO_END
+
+/*****************************************************************************/
+/** sensor_touch
+ *
+ * Coroutine for Touch Sensor Inputs
+ *
+ */
+    // Coroutine Variables for sensor_touch
+    .data
+    .align
+ 	CORO_CONTEXT sensor_touch
+
+    .code 32
+    .text
+    .align
+
+ 	CORO_START	sensor_touch
+    mov     r0, #0
+    ldr		r1, =seqno_touch				// touch sensor sequence number
+    ldr		r2, =touch_val					// pointer to touch_val
+    bl		get_sensor_value
+ 	CORO_END
+
+
+/*****************************************************************************/
 
     .code 32
     .text
@@ -389,10 +627,11 @@ stop_tacho:
  *
  *   Setup Limb Movement based on enum input
  *
- *   0: straight ahead (both motor forward)
- *   1: straight back (both motor reverse)
- *   2: circle to the left (right motor forward)
- *   3: circle to the right (left motor forward)
+ *   MOVE_STOP    0: stop movement (default)
+ *   MOVE_FORWARD 1: straight ahead (both motor forward)
+ *   MOVE_REVERSE 2: straight back (both motor reverse)
+ *   MOVE_LEFT    3: circle to the left (right motor forward)
+ *   MOVE_RIGHT   4: circle to the right (left motor forward)
  *
  *   NOTE: Customize according to robot design
  *
@@ -405,9 +644,9 @@ stop_tacho:
 movement_selector:
 	push	{lr}
 
-case_0_check:
-    cmp		r0, #0
-    bne		case_1_check
+move_forward_check:
+    cmp		r0, #MOVE_FORWARD
+    bne		move_reverse_check
 	// Enable Left Motor Forward
     mov		r0, #TRUE
     mov		r1, #TRUE
@@ -418,9 +657,9 @@ case_0_check:
     bl		motor_config_right
 	b		exit_movement_selector
 
-case_1_check:
-    cmp		r0, #1
-    bne		case_2_check
+move_reverse_check:
+    cmp		r0, #MOVE_REVERSE
+    bne		move_left_check
 	// Enable Left Motor Reverse
     mov		r0, #TRUE
     mov		r1, #FALSE
@@ -431,9 +670,9 @@ case_1_check:
     bl		motor_config_right
 	b		exit_movement_selector
 
-case_2_check:
-    cmp		r0, #2
-    bne		case_3_check
+move_left_check:
+    cmp		r0, #MOVE_LEFT
+    bne		move_right_check
 	// Disable Left Motor
     mov		r0, #FALSE
     mov		r1, #FALSE
@@ -444,10 +683,23 @@ case_2_check:
     bl		motor_config_right
 	b		exit_movement_selector
 
-case_3_check:
+move_right_check:
+    cmp		r0, #MOVE_RIGHT
+    bne		move_stop
 	// Enable Left Motor Forward
     mov		r0, #TRUE
     mov		r1, #TRUE
+    bl		motor_config_left
+    // Disable Right Motor
+    mov		r0, #FALSE
+    mov		r1, #FALSE
+    bl		motor_config_right
+	b		exit_movement_selector
+
+move_stop:
+	// Disable Left Motor
+    mov		r0, #FALSE
+    mov		r1, #FALSE
     bl		motor_config_left
     // Disable Right Motor
     mov		r0, #FALSE
@@ -554,6 +806,9 @@ detect_sensor:
     bl      ev3_sensor_init                  // Returns number of sensors detected
     cmp		r0, #NUM_SENSORS
     bge		find_touch_sensor
+
+    ldr     r0, =waitsensorstr
+    bl      prog_content2
     ldr     r0, =SLEEP_DURATION_1SEC
     bl      usleep
     b       detect_sensor                    // Loop until at least one sensor detected
@@ -584,6 +839,26 @@ found_sensors:
 	bl		display_sensor_info
     pop	    {pc}
 
+/** setup_sensors
+ *
+ *   Configure Sensor Settings
+ *
+ *   NOTE: Customize according to robot design
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   None
+ *
+ **/
+ setup_sensors:
+    push    {lr}
+	ldr		r0, =seqno_color
+	ldrb	r0, [r0]
+	mov		r1, #COLOR_COL_REFLECT
+	bl		set_sensor_mode_inx				// Configure Color Sensor for reflected light intensity input
+    pop	    {pc}
+
 /** init_motors
  *
  *   Initialize Motor Subsystem
@@ -605,8 +880,11 @@ init_motors:
     push    {lr}
 detect_tacho:
     bl      ev3_tacho_init                  // Returns number of motors detected
-    cmp     r0, #2
+    cmp     r0, #NUM_ACTUATORS
     bge     find_l_motor
+
+    ldr     r0, =waittachostr
+    bl      prog_content1
     ldr     r0, =SLEEP_DURATION_1SEC
     bl      usleep
     b       detect_tacho                    // Loop until tacho motors detected
@@ -747,7 +1025,11 @@ stop_and_release_motors:
 
 /** update_systick_and_sleep
  *
- *   Update event loop systick and sleep until start of next loop
+ *   Update event loop systick and sleep until start of next loop.
+ *
+ *   WARNING: The event loop assumes that all routines are completed within
+ *            EVENTLOOP_TICKCOUNT, otherwise the event loop behavior will not
+ *            be predictable.
  *
  * Parameters:
  *   None
@@ -761,15 +1043,30 @@ update_systick_and_sleep:
 	ldr		r1, =loop_systick
 	ldr		r2, =EVENTLOOP_TICKCOUNT
 	ldr		r3, [r1]						// get current loop starting systick
-	add		r3, r3, r2
+	add		r3, r3, r2						// r3 = next loop starting systick
+	subs	r2, r3, r0						// sleep duration = next loop starting systick - current systick
+	ble		no_sleep						// exceeded EVENTLOOP_TICKCOUNT
+
+go_sleep:
 	str		r3, [r1]						// Update next loop starting systick
-	sub		r0, r3, r0						// sleep duration = next loop starting systick - current systick
 	bl		usleep							// Call usleep()
+	b		exit_sleep
+
+no_sleep:
+	str		r0, [r1]						// Store current systick as the start of the next event loop
+	ldr		r1, =loop_exceeded
+	ldr		r0, [r1]
+	add		r0, r0, #1
+	str		r0, [r1]						// Update loop_exceeded count
+
+exit_sleep:
 	pop		{pc}
 
 /** init_robot
  *
  *   Initialize Robot Sensors and Actuators
+ *
+ *   NOTE: Customize according to robot design
  *
  * Parameters:
  *   None
@@ -782,7 +1079,16 @@ init_robot:
     bl		tick_init
     bl      init_sensors
     bl      init_motors
+    bl		setup_sensors
     bl      setup_motors
+    bl		getpid							// Retrieve the PID of the process, as srandom seed
+	bl		srandom							// Initialize random number generator
+
+	// Setup Robot State to ROBOT_IDLE
+	mov		r0, #ROBOT_IDLE
+	ldr		r1, =robot_state
+	strb	r0, [r1]
+
     pop     {pc}
 
 /** check_exit
@@ -819,16 +1125,115 @@ done_exit_check:
 
 /*****************************************************************************/
 
+/** input_controller
+ *
+ *   Poll all inputs and check key presses
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   None
+ *
+ **/
+input_controller:
+    push    {r4, lr}
+
+/************************ Begin Customization Here ***************************/
+	CORO_CONTEXT_INIT sensor_color			// reset color input gathering
+	CORO_CONTEXT_INIT sensor_touch			// reset touch input gathering
+
+input_coroutine_dispatcher:
+	mov		r4, #NUM_SENSORS				// Number of sensor inputs to process
+
+check_keypress:
+	bl		check_exit
+	cmp		r0, #TRUE
+	beq		flag_robot_quit
+
+check_color_sensor:
+	CORO_CALL	sensor_color
+	cmp		r0, #CO_END
+    subeq   r4, r4, #1
+	bne		check_touch_sensor
+
+calc_min_max:
+	ldr		r0, =color_intensity_array
+	mov		r1, #NUM_COLOR_READINGS
+	ldr		r2, =color_intensity_min
+	ldr		r3, =color_intensity_max
+	bl		min_max_u32						// perform min-max calculation
+
+check_touch_sensor:
+	CORO_CALL	sensor_touch
+	cmp		r0, #CO_END
+    subeq   r4, r4, #1
+
+input_coroutine_continue:
+	cmp		r4, #0
+	bhi		input_coroutine_dispatcher		// Done with all the sensor inputs
+	b		exit_input_controller			// continue with next event loop
+
+flag_robot_quit:
+	ldr		r1, =robot_state
+	mov		r0, #ROBOT_QUIT
+	strb	r0, [r1]
+
+/************************* End Customization Here ****************************/
+exit_input_controller:
+	pop		{r4, pc}
+
+/** behavior_dispatcher
+ *
+ *   Incorporates behavior dispatcher and arbiter
+ *
+ *   This version implements fixed priority hierarchical arbitration
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   None
+ *
+ **/
+behavior_dispatcher:
+    push    {lr}
+
+/************************ Begin Customization Here ***************************/
+
+/************************* End Customization Here ****************************/
+	// Clear bhvr_suppress flag
+	ldr		r1, =bhvr_suppress
+	mov		r0, #FALSE
+	strb	r0, [r1]
+
+	pop		{pc}
+
+/** actuator_controller
+ *
+ *   Configure all actuator outputs
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   None
+ *
+ **/
+actuator_controller:
+    push    {lr}
+
+/************************ Begin Customization Here ***************************/
+
+/************************* End Customization Here ****************************/
+
+	pop		{pc}
+
+/*****************************************************************************/
+
 /** main
  *
  *   Main application routine
  *
  * Variables:
- *   R4: Sequence No of Touch Sensor
- *   R5: Address of touch_val
- *   R6: Number of steps
- *   R7: No of motors for coroutine dispatcher
- *   R8: Number of stinger activations
+ *   R4: pointer to robot_state
  **/
     .global main
 main:
@@ -842,114 +1247,37 @@ main:
 robot_setup:
     bl      init_robot                      // Setup sensor and motor modules
 
-    bl		getpid							// Retrieve the PID of the process, as srandom seed
-	bl		srandom							// Initialize random number generator
+	// Configure robot_state
+	ldr		r4, =robot_state
+	mov		r0, #ROBOT_IDLE
+	strb	r0, [r4]
 
-    ldr		r4, =seqno_touch
-    ldrb	r4, [r4]						// Retrieve touch sensor sequence number
-
-    ldr		r5, =touch_val					// Pointer to touch_val
-
-    mov		r8, #NUM_STINGS					// Number of activations
-
-#if 1
-    mov		r9, #0							// Test movement using movement index in r9
-#endif
+	// Suppress all behaviors on first pass to reset behaviors
+	set_bhvr_suppress	TRUE
 
 	// Configure loop_systick before starting event loop
 	bl		tick_systick					// returns systick in r0
 	ldr		r1, =loop_systick
 	str		r0, [r1]
 
-activation_loop:
-    ldr     r0, =waitingstr
-    mov		r1, #7							// Row 7
-    bl      prog_contentX
+event_loop:
 
-    mov     r0, r8                          // Display sting counter
-    mov     r1, #2                          // Right aligned 2 digit counter
-    bl      prog_display_integer_aligned
+	bl		input_controller				// Update sensor and keypress inputs
 
-wait_stinger:
-	WAIT_10MS								// Delay 10 ms
+	// Check if we need to quit
+	ldr		r0, [r4]
+	cmp		r0, #ROBOT_QUIT
+	beq		robot_cleanup					// Quit detected
 
-    mov     r0, #0
-    mov		r1, r4							// touch sensor sequence number
-    mov		r2, r5							// pointer to touch_val
-    bl		get_sensor_value
-    cmp     r0, #0
-    beq		wait_stinger					// No value read, keep waiting
+	bl		behavior_dispatcher				// Execute behaviors based on priority
+	bl		actuator_controller				// Configure actuator outputs
 
-	ldr		r0, [r5]						// Retrieve touch value
-	cmp		r0, #0
-	beq		wait_stinger					// Value is 0 (no touch), keep waiting
-
-    mov     r6, #NUM_STEPS                  // Setup step count
-
-#if 0
-	bl		random							// Generate a random value in R0
-	and		r0, r0, #0x3					// Keep last 2 bits
-#else
-    mov     r0, r9							// Retrieve movement index
-#endif
-
-generate_movement:
-
-	bl		movement_selector				// Select movement from random() r0[1:0]
-
-step:
-
-    // Reset Coroutines for coroutine_dispatcher
-    CORO_CONTEXT_INIT motor_left
-    CORO_CONTEXT_INIT motor_right
-
-    // initialize num_running_motors synchronization variable
-    ldr     r1, =num_running_motors
-    mov     r0, #0
-    str     r0, [r1]
-
-coroutine_dispatcher:
-    // Setup number of motors for coroutine dispatcher
-    mov         r7, #NUM_MOTORS
-
-    ldr         r0, =SLEEP_DURATION_10MS
-    bl          usleep                      // Check every 10 ms
-    CORO_CALL   motor_left                  // Complete one 360 deg rotation
-    cmp         r0, #CO_END
-    subeq       r7, r7, #1
-    CORO_CALL   motor_right                 // Complete one 360 deg rotation
-    cmp         r0, #CO_END
-    subeq       r7, r7, #1
-    cmp         r7, #0
-    bgt         coroutine_dispatcher
-
-    subs    r6, r6, #1                      // Continue until movement done
-    bgt     step
-
-	/* This is only needed if we're running in the debugger on the remote console.
-	   Brickman will automatically exit if pressed-and-held for 2 seconds */
-	// Check if Exit button pressed
-	bl		check_exit
-	cmp		r0, #TRUE
-	beq		robot_cleanup
-
-activation_sleep:
-	bl		update_systick_and_sleep
-
-check_stings:
-    subs    r8, r8, #1
-    beq		robot_cleanup					// Continue until sting activations done
-#if 1
-    add     r9, r9, #1						// Update movement index
-    and		r9, r9, #0x3					// index modulo 4
-#endif
-
-activation_sleep:
-	bl		update_systick_and_sleep
-    b       activation_loop
+event_sleep:
+	bl		update_systick_and_sleep		// Sleep for remainder of event loop
+    b       event_loop
 
 robot_cleanup:
-    ldr     r0, =donestr
+    ldr     r0, =exitstr
     mov		r1, #7							// Row 7
     bl      prog_contentX
 
@@ -959,6 +1287,7 @@ robot_cleanup:
 
 exit_main:
     bl      prog_exit
+    mov		r0, #0							// Exit status
     pop     {pc}
 
     .end

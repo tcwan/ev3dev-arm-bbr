@@ -15,7 +15,9 @@
 
 #ifdef __ASSEMBLY__
 
-#define EVENTLOOP_TICKCOUNT 100000					// 100 ms per event loop
+#include "ev3dev-arm-bbr.h"
+
+#define EVENTLOOP_TICKCOUNT 100 * TICKS_PER_MSEC	// 100 ms per event loop
 
 #define L_MOTOR_PORT      OUTPUT_B
 #define L_MOTOR_EXT_PORT  EXT_PORT__NONE_

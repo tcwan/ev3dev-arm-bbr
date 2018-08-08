@@ -22,7 +22,6 @@
 #include "ev3_port.h"
 #include "ev3_tacho.h"
 #include "ev3_sensor.h"
-#include "ev3dev-arm-bbr.h"
 #include "../b33.h"
 
 /* Standard C Library routines */
@@ -36,11 +35,14 @@
     .equiv  NUM_MOTORS, 2
     // Scaling factor in no. of right bitshifts for countperrot (ASR 2 == div. 4 [90 deg])
     .equiv  ROTATION_SCALING, 2
+    // Number of LEGO MINDSTORM Sensors
+    .equiv  NUM_SENSORS, 1
 
     .data
     .align
 
 titlestr:       .asciz  "Stinger Robot"
+waittachostr:	.asciz	"Detecting tacho motors......"
 waitltachostr:  .asciz  "Waiting (Left Tacho Port B) "
 waitrtachostr:  .asciz  "Waiting (Right Tacho Port C)"
 
@@ -48,13 +50,14 @@ foundmotor0str:	.asciz  "Tacho: L("
 foundmotor1str:	.asciz  "), R("
 foundmotorNstr: .asciz  ")  "
 
+waitsensorstr:  .asciz  "Detecting sensors....."
 waittouchstr:   .asciz  "Waiting (Touch Sensor)"
 
 foundsensor0str: .asciz	"Input: TCH("
 foundsensorNstr: .asciz	")          "
 
 waitingstr:     .asciz      "Waiting for stinger..."
-donestr:        .asciz      "Stinger done!         "
+exitstr:        .asciz      "Exiting Stinger       "
 
 // Need to align the following data, otherwise the string termination is not guaranteed
     .align
@@ -364,8 +367,11 @@ init_sensors:
     push    {lr}
 detect_sensor:
     bl      ev3_sensor_init                  // Returns number of sensors detected
-    cmp		r0, #1
+    cmp		r0, #NUM_SENSORS
     bge		find_touch_sensor
+
+    ldr     r0, =waitsensorstr
+    bl      prog_content2
     ldr     r0, =SLEEP_DURATION_1SEC
     bl      usleep
     b       detect_sensor                    // Loop until at least one sensor detected
@@ -406,6 +412,9 @@ detect_tacho:
     bl      ev3_tacho_init                  // Returns number of motors detected
     cmp     r0, #2
     bge     find_l_motor
+
+    ldr     r0, =waittachostr
+    bl      prog_content1
     ldr     r0, =SLEEP_DURATION_1SEC
     bl      usleep
     b       detect_tacho                    // Loop until tacho motors detected
@@ -625,18 +634,21 @@ coroutine_dispatcher:
     CORO_CALL   motor_right                 // Complete one 360 deg rotation
     cmp         r0, #CO_END
     subeq       r7, r7, #1
+
+coroutine_continue:
     cmp         r7, #0
-    bgt         coroutine_dispatcher
+    bhi         coroutine_dispatcher
 
+step_continue:
     subs    r6, r6, #1                      // Continue until movement done
-    bgt     step
+    bhi     step
 
-check_stings:
+sting_continue:
     subs    r8, r8, #1
     bne     activation_loop					// Continue until sting activations done
 
 robot_cleanup:
-    ldr     r0, =donestr
+    ldr     r0, =exitstr
     mov		r1, #7							// Row 7
     bl      prog_contentX
 
