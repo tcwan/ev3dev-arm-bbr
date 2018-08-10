@@ -53,7 +53,7 @@
     // Color Sensor Parameters
 	.equiv	NUM_COLOR_READINGS, 5
 	.equiv	SIZE_COLOR_READING, 4								// 32-bit values
-	.equiv	COLOR_READ_INTERVAL, 10 * TICKS_PER_MSEC			// 10 ms
+	.equiv	COLOR_READ_INTERVAL, 3 * TICKS_PER_MSEC				// 3 ms
 
 /*****************************************************************************/
 /* Enums
@@ -77,6 +77,7 @@
     ENUM_N		HEAD_UP
     ENUM_N		HEAD_MOVING_DOWN
     ENUM_N		HEAD_MOVING_UP
+    ENUM_N		HEAD_UNKNOWN
 
     .data
     .align
@@ -112,6 +113,27 @@ behavior_escapestr:     .asciz "Escape     "
 exitstr:				.asciz "Exiting Seeker"
 
 
+/** Motor Control Data Structure
+ *
+ **/
+	.macro MOTOR_CONTROL_STRUCT	side
+	.align
+	// Speed control variables
+	// The struct layout groups similar sized variables to optimize space allocation with data alignment
+motor_control_struct_\side:
+motor_speed_\side:		.word	0
+motor_enable_\side: 	.byte	FALSE
+motor_forward_\side:	.byte	FALSE
+motor_numsteps_\side:	.byte	0
+
+	 // The equates using .equ can be set by multiple macro invocations
+	.equ motor_control_struct_size, . - motor_control_struct_\side
+	.equ motor_speed_offset, motor_speed_\side - motor_control_struct_\side
+	.equ motor_enable_offset, motor_enable_\side - motor_control_struct_\side
+	.equ motor_forward_offset, motor_forward_\side - motor_control_struct_\side
+	.equ motor_numsteps_offset, motor_numsteps_\side - motor_control_struct_\side
+	.endm
+
 // Need to align the following data, otherwise the string termination is not guaranteed
     .align
 /*****************************************************************************/
@@ -131,12 +153,51 @@ color_intensity_min:   .word 0
 color_intensity_max:   .word 0
 color_intensity_array: .space	(NUM_COLOR_READINGS * SIZE_COLOR_READING), 0x0		// 32-bit values
 
-/* Coroutine synchronization variable */
+/* Head Motor Position Parameters */
+head_prevpos:	.word	0
+head_currpos:	.word	0
+
+/* Limb Motor Coroutine synchronization variable */
 num_running_motors: .word    0
 
 /* Motor Rotation related parameter */
 countperrot:    .word   0                   // Tacho count per rotation (360 deg)
-                                            // Assume identical for both motors
+                                            // Assume identical for both limb motors
+
+/*****************************************************************************/
+/* Motor Actuator speed control structs (word aligned)
+/*****************************************************************************/
+	MOTOR_CONTROL_STRUCT	head
+	MOTOR_CONTROL_STRUCT	left
+	MOTOR_CONTROL_STRUCT	right
+
+#if 1
+// Check macro constant name expansion
+	.align
+mcs_size:			.word		motor_control_struct_size
+mcs_speed_offset:	.word		motor_speed_offset
+mcs_enable_offset:	.word		motor_enable_offset
+mcs_forward_offset:	.word		motor_forward_offset
+mcs_numsteps_offset: .word		motor_numsteps_offset
+#endif
+/*****************************************************************************/
+/* Program Specific Variables (byte aligned)
+/*****************************************************************************/
+	.align
+/* EV3 Keypress input variable */
+keypress:		.byte	EV3_KEY__NONE_
+
+/* Sting Activated state variable */
+sting_activated: .byte	FALSE
+
+/* Head Movement state variable */
+head_state:		.byte	HEAD_UNKNOWN
+
+/* Robot State variable */
+robot_state:	.byte	ROBOT_IDLE
+
+/* Behavior Suppression Boolean */
+bhvr_suppress:	.byte	TRUE
 
 /*****************************************************************************/
 /* Device Sequence Numbers used by ev3dev-c
@@ -162,18 +223,6 @@ endmotors:      .byte   DESC_LIMIT          // Vector Terminator
 
 seqno_touch:    .byte   0
 seqno_color:    .byte   0
-
-/*****************************************************************************/
-/* Program Specific Variables (byte aligned)
-/*****************************************************************************/
-/* EV3 Keypress input variable */
-keypress:		.byte	EV3_KEY__NONE_
-
-/* Robot State variable */
-robot_state:	.byte	ROBOT_IDLE
-
-/* Behavior Suppression Boolean */
-bhvr_suppress:	.byte	TRUE
 
 /*****************************************************************************/
 /* motor_xxxx Coroutine Macro Definition
@@ -214,6 +263,7 @@ bhvr_suppress:	.byte	TRUE
     .align
     CORO_LOCAL		tacho_currpos_\side, word, 0
     CORO_LOCAL		tacho_targetpos_\side, word, 0
+    CORO_LOCAL		tacho_speed_\side, word, 0
 
     CORO_CONTEXT    motor_\side
 
@@ -237,7 +287,7 @@ has_tacho_reached_target_\side:
     ldrb    r0, [r0]                        // Retrieve motor sequence number
     ldr     r4, =tacho_currpos_\side
     mov     r1, r4                          // Setup parameter
-    bl      get_tacho_position              // Take current position reading for motor_\side
+    bl      get_tacho_position              // Record current position for motor_\side
 
     ldr     r0, [r4]                        // Retrieve current position
     ldr     r1, =tacho_targetpos_\side
@@ -302,7 +352,8 @@ advance_\side:
     ldr     r1, =tacho_targetpos_\side
     ldr		r2, =countperrot
     ldr		r2, [r2]						// Retrieve unsigned countperrot value
-    mov     r3, #TACHO_MAX_SPEED            // Target speed of the motor
+    ldr		r3, =tacho_speed_\side
+    ldr		r3, [r3]						// Speed of the motor
 
     // Use r0 (temporary) to check tacho_forward_\side
     ldr		r0, =tacho_forward_\side		// Retrieve tacho_forward_\side boolean
@@ -377,7 +428,13 @@ motor_end_\side:
 
 
 /** DEFINE_BEHAVIOR_ROUTINE
- *    Escape Behavior (Highest Priority)
+ *
+ *	  Used to define Behaviors
+ *
+ *    Need to provide:
+ *    - trigger_\behavior routine that returns TRUE if behavior should be activated
+ *    - Coroutine Context \behavior to store behavior state
+ *    - Coroutine \behavior to execute behavior tasks
  *
  * Parameters:
  *   None
@@ -552,6 +609,56 @@ stop_tacho:
     pop     {pc}
 
 /*****************************************************************************/
+/* Utiilty Functions to setup Actuator Controller for Behavior Coroutines
+/*****************************************************************************/
+/** config_motor_stop
+ *
+ * Parameters:
+ *    r0: Pointer to Motor Control Structure
+ * Returns:
+ *   None
+ */
+config_motor_stop:
+    mov		r1, #FALSE
+    strb	r1, [r0, #motor_enable_offset]
+    mov		pc, lr
+
+/** config_motor_forward
+ *
+ * Parameters:
+ *    r0: Pointer to Motor Control Structure
+ *    r1: Speed
+ *    r2: Number of steps (used by limb motors)
+ * Returns:
+ *   None
+ */
+config_motor_forward:
+    str		r1, [r0, #motor_speed_offset]
+	strb	r2, [r0, #motor_numsteps_offset]
+    mov		r3, #TRUE
+    strb	r3, [r0, #motor_enable_offset]
+    strb	r3, [r0, #motor_forward_offset]
+    mov		pc, lr
+
+/** config_motor_reverse
+ *
+ * Parameters:
+ *    r0: Pointer to Motor Control Structure
+ *    r1: Speed
+ *    r2: Number of steps (used by limb motors)
+ * Returns:
+ *   None
+ */
+config_motor_reverse:
+    str		r1, [r0, #motor_speed_offset]
+	strb	r2, [r0, #motor_numsteps_offset]
+    mov		r3, #TRUE
+    strb	r3, [r0, #motor_enable_offset]
+    mov		r3, #FALSE
+    strb	r3, [r0, #motor_forward_offset]
+    mov		pc, lr
+
+/*****************************************************************************/
 /* Coroutine Instantiation
 /*****************************************************************************/
     DEFINE_COROUTINE_MOTOR left
@@ -648,6 +755,17 @@ done_sensor_color:
     ldr		r1, =seqno_touch				// touch sensor sequence number
     ldr		r2, =touch_val					// pointer to touch_val
     bl		get_sensor_value
+
+    // Set sting_activated variable if touched
+    ldr		r1, =sting_activated
+    ldr		r2, =touch_val					// pointer to touch_val
+	ldrb	r0, [r2]						// Retrieve Touch value
+	cmp		r0, #FALSE
+	beq		no_sting
+
+	mov		r0, #TRUE
+	strb	r0, [r1]						// Only set state variable, cleared by behavior
+no_sting:
  	CORO_END
 
 /*****************************************************************************/
@@ -668,13 +786,47 @@ done_sensor_color:
     // Trigger routine
     // Returns TRUE if conditions met, FALSE otherwise
 trigger_escape:
-	push	{lr}
-	mov		r0, #TRUE
-	pop		{pc}
+	ldr		r1, =sting_activated
+	ldrb	r0, [r1]
+	cmp		r0, #FALSE
+	movne	r0, #TRUE						// Touch Activated, so flag TRUE
+	mov		pc, lr
 
  	CORO_START	escape
+
+ 	// Clear sting_activated state variable
+ 	ldr		r1, =sting_activated
+ 	mov		r0, #FALSE
+ 	strb	r0, [r1]
+
 loop_escape:
 	DISPLAY_ROBOT_STATE behavior_escapestr
+	// Raise Head
+	// FIXME: current head state is not checked
+
+	// Record staring position
+    ldr     r0, =seqno_head
+    ldrb    r0, [r0]                        // Retrieve head sequence number
+    ldr     r1, =head_prevpos
+    bl      get_tacho_position              // Record starting position for head motor
+
+	ldr		r1, =head_state
+	mov		r0, #HEAD_MOVING_UP
+	strb	r0, [r1]						// Update head state variable
+
+	// Setup Head Controller actions
+	ldr		r0, =motor_control_struct_head
+	bl		config_motor_forward
+
+	// Move X steps forward
+	bl		random							// Generate a random value in r0
+	and		r2, r0, #0x3					// Keep last 2 bits as step count (0-3)
+	add		r2, r2, #1						// make sure there is at least one step (1-4)
+	mov		r0, #MOVE_FORWARD
+	ldr		r1, =TACHO_MAX_SPEED
+	bl		movement						// Setup movement
+
+	// FIXME
 	CORO_YIELD
 	b	loop_escape
  	CORO_END
@@ -753,8 +905,21 @@ loop_lower_head:
     .align
 
  	CORO_START	idle
+
 loop_idle:
 	DISPLAY_ROBOT_STATE behavior_idlestr
+	ldr		r0, =motor_control_struct_head
+	bl		config_motor_stop
+	// Use movement routine to setup actuator controller
+	mov		r0, #MOVE_STOP
+	bl		movement
+
+#if 0
+	ldr		r0, =motor_control_struct_left
+	bl		config_motor_stop
+	ldr		r0, =motor_control_struct_right
+	bl		config_motor_stop
+#endif
 	CORO_YIELD
 	b		loop_idle
  	CORO_END
@@ -772,6 +937,7 @@ loop_idle:
 	DEFINE_BEHAVIOR_ROUTINE followpath
 	DEFINE_BEHAVIOR_ROUTINE lower_head
 
+/*****************************************************************************/
 /** bhvr_idle
  *    Idle Behavior (Lowest Priority)
  *
@@ -816,12 +982,66 @@ exit_idle:
  *
  * Parameters:
  *   r0: Movement type Enum
+ *   r1: Movement Speed
+ *   r2: Number of Steps
  * Returns:
  *   None
  *
  **/
 movement_selector:
 	push	{lr}
+
+enum_check:
+	cmp		r0, #MOVE_FORWARD
+	beq		move_foward
+	cmp		r0, #MOVE_REVERSE
+	beq		move_reverse
+	cmp		r0, #MOVE_LEFT
+	beq		move_left
+	cmp		r0, #MOVE_RIGHT
+	beq		move_right
+
+default_movement:
+	// r0 == MOVE_STOP or unknown value
+	ldr		r0, =motor_control_struct_left
+	bl		config_motor_stop
+	ldr		r0, =motor_control_struct_right
+	bl		config_motor_stop
+	b		exit_movement_selector
+
+move_forward:
+	// Enable both motors forward
+	ldr		r0, =motor_control_struct_left
+	bl		config_motor_forward
+	ldr		r0, =motor_control_struct_right
+	bl		config_motor_forward
+	b		exit_movement_selector
+
+move_reverse:
+	// Enable both motors reverse
+	ldr		r0, =motor_control_struct_left
+	bl		config_motor_reverse
+	ldr		r0, =motor_control_struct_right
+	bl		config_motor_reverse
+	b		exit_movement_selector
+
+move_left:
+	// Disable left motor, enable right motor forward
+	ldr		r0, =motor_control_struct_left
+	bl		config_motor_stop
+	ldr		r0, =motor_control_struct_right
+	bl		config_motor_forward
+	b		exit_movement_selector
+
+move_right:
+	// Enable left motor forward, disable right motor
+	ldr		r0, =motor_control_struct_left
+	bl		config_motor_forward
+	ldr		r0, =motor_control_struct_right
+	bl		config_motor_stop
+	// b		exit_movement_selector
+
+#if 0
 
 move_forward_check:
     cmp		r0, #MOVE_FORWARD
@@ -884,6 +1104,7 @@ move_stop:
     mov		r0, #FALSE
     mov		r1, #FALSE
     bl		motor_config_right
+#endif
 
 exit_movement_selector:
 	pop		{pc}
@@ -1376,8 +1597,10 @@ check_touch_sensor:
 
 input_coroutine_continue:
 	cmp		r4, #0
-	bhi		input_coroutine_dispatcher		// Done with all the sensor inputs
-	b		exit_input_controller			// continue with next event loop
+	beq		exit_input_controller			// Done with all the sensor inputs
+
+	wait_500us								// Let task scheduler do something else
+	b		input_coroutine_dispatcher		// continue with next event loop
 
 flag_robot_quit:
 	ldr		r1, =robot_state

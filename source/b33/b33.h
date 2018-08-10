@@ -38,6 +38,23 @@
 #define HEAD_STOP_MODE      TACHO_BRAKE
 #define HEAD_RUN_MODE       TACHO_RUN_FOREVER
 
+	.extern	usleep
+
+	/** WAIT_500US
+	 *
+	 *    Macro to call usleep for 500 us
+	 *
+	 * Parameters:
+	 *   None
+	 * Returns:
+	 *   r0: 0 if successful, -1 if error (errno set)
+	 *
+	 **/
+	.macro	WAIT_500US
+	ldr     r0, =SLEEP_DURATION_500US
+	bl      usleep
+	.endm
+
 /** WAIT_10MS
  *
  *    Macro to call usleep for 10 ms
@@ -48,8 +65,6 @@
  *   r0: 0 if successful, -1 if error (errno set)
  *
  **/
-	.extern	usleep
-
 	.macro	WAIT_10MS
     ldr     r0, =SLEEP_DURATION_10MS
     bl      usleep

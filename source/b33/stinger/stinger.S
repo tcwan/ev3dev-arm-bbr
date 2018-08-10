@@ -62,10 +62,10 @@ exitstr:        .asciz      "Exiting Stinger       "
 // Need to align the following data, otherwise the string termination is not guaranteed
     .align
 countperrot:    .word   0                   // Tacho count per rotation (360 deg)
-                                            // Assume identical for both motors
+                                            // Assume identical for both limb motors
 touch_val:		.word	0					// Touch sensor input buffer
 
-/* Coroutine synchronization variable */
+/* Limb Motor Coroutine synchronization variable */
 num_running_motors: .word    0
 
 motors_vec:                     // Vector of motor seqnos needed by multi_set_tacho_XXX()
@@ -135,7 +135,7 @@ has_tacho_reached_target_\side:
     ldrb    r0, [r0]                        // Retrieve motor sequence number
     ldr     r4, =tacho_currpos_\side
     mov     r1, r4                          // Setup parameter
-    bl      get_tacho_position              // Take current position reading for motor_\side
+    bl      get_tacho_position              // Record current position for motor_\side
 
     ldr     r0, [r4]                        // Retrieve current position
     ldr     r1, =tacho_targetpos_\side
