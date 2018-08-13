@@ -683,6 +683,7 @@ config_motor_reverse:
     .align
 
  	CORO_START	motor_head
+ 	NOP
  	CORO_END
 
 /*****************************************************************************/
@@ -824,7 +825,7 @@ loop_escape:
 	add		r2, r2, #1						// make sure there is at least one step (1-4)
 	mov		r0, #MOVE_FORWARD
 	ldr		r1, =TACHO_MAX_SPEED
-	bl		movement						// Setup movement
+	bl		movement_selector				// Setup movement
 
 	// FIXME
 	CORO_YIELD
@@ -850,7 +851,7 @@ loop_escape:
     // Returns TRUE if conditions met, FALSE otherwise
 trigger_followpath:
 	push	{lr}
-	mov		r0, #TRUE
+	mov		r0, #FALSE
 	pop		{pc}
 
  	CORO_START	followpath
@@ -879,7 +880,7 @@ loop_followpath:
     // Returns TRUE if conditions met, FALSE otherwise
 trigger_lower_head:
 	push	{lr}
-	mov		r0, #TRUE
+	mov		r0, #FALSE
 	pop		{pc}
 
  	CORO_START	lower_head
@@ -912,7 +913,7 @@ loop_idle:
 	bl		config_motor_stop
 	// Use movement routine to setup actuator controller
 	mov		r0, #MOVE_STOP
-	bl		movement
+	bl		movement_selector				// Setup movement
 
 #if 0
 	ldr		r0, =motor_control_struct_left
@@ -993,7 +994,7 @@ movement_selector:
 
 enum_check:
 	cmp		r0, #MOVE_FORWARD
-	beq		move_foward
+	beq		move_forward
 	cmp		r0, #MOVE_REVERSE
 	beq		move_reverse
 	cmp		r0, #MOVE_LEFT
