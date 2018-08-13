@@ -495,6 +495,10 @@ exit_\behavior:
  *
  *    Last Color Sensor Reading Interval Check
  *
+ *    Note: We need to deal with U32 rollover issues using signed arithmetic
+ *          color_last_systick and current systick are both U32
+ *          Sleep if (S32)( current systick - next color_last_systick ) < 0
+ *
  * Parameters:
  *   None
  * Returns:
@@ -1457,6 +1461,10 @@ stop_and_release_motors:
  *            EVENTLOOP_TICKCOUNT, otherwise the event loop behavior will not
  *            be predictable.
  *
+ *   Note: We need to deal with U32 rollover issues using signed arithmetic
+ *         loop_systick and current systick are both U32
+ *         Sleep if (S32)( current systick - next loop_systick ) < 0
+ *
  * Parameters:
  *   None
  * Returns:
@@ -1469,12 +1477,13 @@ update_systick_and_sleep:
 	ldr		r1, =loop_systick
 	ldr		r2, =EVENTLOOP_TICKCOUNT
 	ldr		r3, [r1]						// get current loop starting systick
-	add		r3, r3, r2						// r3 = next loop starting systick
-	subs	r2, r3, r0						// sleep duration = next loop starting systick - current systick
-	ble		no_sleep						// exceeded EVENTLOOP_TICKCOUNT
+	add		r3, r3, r2						// r3 = next loop starting systick (may rollover)
+	subs	r2, r0, r3						// check (r2 = (current systick - next loop_systick)) < 0
+	bge		no_sleep						// false, so no sleeping
 
 go_sleep:
 	str		r3, [r1]						// Update next loop starting systick
+	neg		r0, r2							// 2's complement of negative duration in r2
 	bl		usleep							// Call usleep()
 	b		exit_sleep
 
@@ -1691,9 +1700,7 @@ robot_setup:
 	set_bhvr_suppress	TRUE
 
 	// Configure loop_systick before starting event loop
-	bl		tick_systick					// returns systick in r0
-	ldr		r1, =loop_systick
-	str		r0, [r1]
+	record_systick loop_systick
 
 event_loop:
 
