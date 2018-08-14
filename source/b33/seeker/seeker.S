@@ -619,6 +619,57 @@ stop_tacho:
     pop     {pc}
 
 /*****************************************************************************/
+/* Utiilty Functions to support Head Actuator Movement
+/*****************************************************************************/
+/** record_head_position
+ *
+ * Parameters:
+ *    r0: Pointer to Head Position variable
+ * Returns:
+ *   None
+ */
+record_head_position:
+    push    {lr}
+	mov		r1, r0							// Needed as second argument
+    ldr     r0, =seqno_head
+    ldrb    r0, [r0]                        // Retrieve head sequence number
+    bl      get_tacho_position              // Record starting position for head motor
+    pop     {pc}
+
+/** has_head_stopped
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   r0: TRUE if stopped, else FALSE
+  */
+has_head_stopped:
+    push    {lr}
+	// Record current position
+    ldr     r0, =head_currpos
+    bl      record_head_position            // Record starting position for head motor
+
+    ldr     r0, =head_currpos
+    ldr		r0, [r0]
+    ldr     r2, =head_prevpos
+    ldr		r1, [r2]
+	subs	r1, r0, r1						// r1 = currpos - prevpos
+	neglt	r1, r1							// get absolute difference
+	cmp		r1, #HEAD_STOPPED_SLACK			// Allow for some slack in readings
+	bls		head_stopped
+
+head_still_moving:
+	str		r0, [r2]						// Update prevpos with currpos reading
+	mov		r0, #FALSE						// Return status
+	b		exit_has_head_stopped
+
+head_stopped:
+	mov		r0, #TRUE						// Return status
+
+exit_has_head_stopped:
+    pop     {pc}
+
+/*****************************************************************************/
 /* Utiilty Functions to setup Actuator Controller for Behavior Coroutines
 /*****************************************************************************/
 /** config_motor_stop
@@ -812,10 +863,8 @@ loop_escape:
 	// FIXME: current head state is not checked
 
 	// Record staring position
-    ldr     r0, =seqno_head
-    ldrb    r0, [r0]                        // Retrieve head sequence number
-    ldr     r1, =head_prevpos
-    bl      get_tacho_position              // Record starting position for head motor
+    ldr     r0, =head_prevpos
+    bl      record_head_position            // Record starting position for head motor
 
 	ldr		r1, =head_state
 	mov		r0, #HEAD_MOVING_UP
@@ -823,7 +872,13 @@ loop_escape:
 
 	// Setup Head Controller actions
 	ldr		r0, =motor_control_struct_head
-	bl		config_motor_forward
+	mov		r1, #HEAD_MAX_SPEED
+	mov		r2, #0							// Num steps is not used by Head Controller
+	bl		config_motor_forward			// Start Head Motor movement
+
+	ldr		r1, =head_state					// Update Head State variable
+	mov		r0, #HEAD_MOVING_UP
+	strb	r0, [r1]
 
 	// Move X steps forward
 	bl		random							// Generate a random value in r0
@@ -832,12 +887,42 @@ loop_escape:
 	mov		r0, #MOVE_FORWARD
 	ldr		r1, =TACHO_MAX_SPEED
 	bl		movement_selector				// Setup movement
-
-	// FIXME
 	CORO_YIELD
-	b	loop_escape
+
+check_escape_done:
+	push	{r4, r5}						// Needed to track has_head_stopped() and has_no_running_motors()
+	bl		has_head_stopped
+	mov		r4, r0							// r4: has_head_stopped status
+	bl		has_no_running_motors
+	mov		r5, r0							// r5: 	has_no_running_motors status
+
+check_head_position:
+	cmp		r4, #TRUE
+	bne		escape_not_done					// Escape behavior has not completed yet
+
+head_has_stopped:
+	ldr		r2, =head_state					// Update Head State variable
+	ldrb	r1, [r2]						// Get current Head State
+	mov		r0, #HEAD_UP
+	cmp		r0, r1							// Have we updated state previously?
+	beq		check_motor_done				// yes, so skip update
+
+	// Stop Motor if we have not done so yet
+	strb	r0, [r2]						// Set Head State to UP
+	ldr		r0, =motor_control_struct_head
+	bl		config_motor_stop				// Stop Head Motor movement
+
+check_motor_done:
+	cmp		r5, #TRUE
+	beq		escape_done						// Behavior Completed
+
+escape_not_done:
+	pop		{r4, r5}						// Clean up stack
+	CORO_YIELD
+	b	check_escape_done					// Behavior not done yet, keep looping
 
  escape_done:
+	pop		{r4, r5}						// Clean up stack
   	// Clear sting_activated state variable
  	ldr		r1, =sting_activated
  	mov		r0, #FALSE

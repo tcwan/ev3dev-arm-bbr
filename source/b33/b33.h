@@ -39,6 +39,7 @@
 #define HEAD_RAMPTIME_MS    10
 #define HEAD_STOP_MODE      TACHO_BRAKE
 #define HEAD_RUN_MODE       TACHO_RUN_FOREVER
+#define HEAD_STOPPED_SLACK  2						// Change in readings to indicate that head has stopped
 
 	.extern	usleep
 
