@@ -1567,7 +1567,6 @@ stop_and_release_motors:
  **/
 update_systick_and_sleep:
 	push	{r4, lr}
-
 	bl		tick_systick					// returns current systick in r0
 	ldr		r1, =loop_systick
 	ldr		r4, =EVENTLOOP_TICKCOUNT
@@ -1581,9 +1580,20 @@ update_systick_and_sleep:
 
 go_sleep:
 	str		r3, [r1]						// Update next loop starting systick
+#if 1
 	mov		r0, r2							// Setup usleep duration
 	bl		usleep							// Call usleep()
 	b		exit_sleep
+#else
+systick_busywait:
+	bl		tick_systick					// returns current systick in r0
+	ldr		r1, =loop_systick
+	ldr		r3, [r1]						// get current loop starting systick
+	subs	r2, r0, r3						// check (r2 = (current systick - next loop_systick)) < 0
+	blt		systick_busywait				// Busy Wait for loop expiry
+	b		exit_sleep
+
+#endif
 
 no_sleep:
 	str		r0, [r1]						// Store current systick as the start of the next event loop
@@ -1721,7 +1731,7 @@ input_coroutine_continue:
 	cmp		r4, #0
 	beq		exit_input_controller			// Done with all the sensor inputs
 
-	wait_500us								// Let task scheduler do something else
+	// wait_500us								// Let task scheduler do something else
 	b		input_coroutine_dispatcher		// continue with next event loop
 
 flag_robot_quit:
