@@ -18,6 +18,8 @@
 #include "ev3dev-arm-bbr.h"
 
 #define ROBOT_STATE_ROW		7						// Robot State Display Row on output screen
+#define ROBOT_DEBUG_ROW		8						// Robot Debug Display Row on output screen
+#define DEBUG_INT_WIDTH     6						// Alignment width for integer value
 
 #define EVENTLOOP_TICKCOUNT 100 * TICKS_PER_MSEC	// 100 ms per event loop
 
@@ -86,6 +88,29 @@
     ldr     r0, =\status_str
     mov		r1, #ROBOT_STATE_ROW
     bl      prog_contentX
+	.endm
+
+/** DISPLAY_DEBUG_INFO
+ *
+ *    Macro to Display Debug Info on LCD screen
+ *
+ * Parameters:
+ *   debug_str: Address of Debug string
+ *   int_reg:   Integer Value Register
+ * Returns:
+ *   None
+ *
+ **/
+	.extern	prog_contentX
+
+	.macro	DISPLAY_DEBUG_INFO	debug_str int_reg
+	push 	{\int_reg}
+	ldr     r0, =\debug_str
+	mov		r1, #ROBOT_DEBUG_ROW
+	bl      prog_contentX
+	pop		{r0}
+	mov		r1, #DEBUG_INT_WIDTH
+	bl		prog_display_integer_aligned
 	.endm
 
 #endif

@@ -28,6 +28,7 @@
 
 // Compilation Debugging Switches
 #undef DEBUG_MIN_MAX
+#define DEBUG_LOOPCOUNT_EXCEEDED
 
 
 /* Standard C Library routines */
@@ -112,6 +113,11 @@ behavior_followpathstr: .asciz "Follow Path"
 behavior_escapestr:     .asciz "Escape     "
 exitstr:				.asciz "Exiting Seeker"
 
+// Debug Strings
+
+#ifdef DEBUG_LOOPCOUNT_EXCEEDED
+exceeded_loopcnt_str:	.asciz "Exceeded Count: "
+#endif
 
 /** Motor Control Data Structure
  *
@@ -757,14 +763,15 @@ done_sensor_color:
 
  	CORO_START	sensor_touch
     mov     r0, #0
-    ldr		r1, =seqno_touch				// touch sensor sequence number
+    ldr		r1, =seqno_touch				// pointer to touch sensor sequence number
+    ldrb	r1, [r1]						// touch sensor sequence number
     ldr		r2, =touch_val					// pointer to touch_val
     bl		get_sensor_value
 
     // Set sting_activated variable if touched
     ldr		r1, =sting_activated
     ldr		r2, =touch_val					// pointer to touch_val
-	ldrb	r0, [r2]						// Retrieve Touch value
+	ldr		r0, [r2]						// Retrieve Touch value
 	cmp		r0, #FALSE
 	beq		no_sting
 
@@ -799,11 +806,6 @@ trigger_escape:
 
  	CORO_START	escape
 
- 	// Clear sting_activated state variable
- 	ldr		r1, =sting_activated
- 	mov		r0, #FALSE
- 	strb	r0, [r1]
-
 loop_escape:
 	DISPLAY_ROBOT_STATE behavior_escapestr
 	// Raise Head
@@ -834,6 +836,13 @@ loop_escape:
 	// FIXME
 	CORO_YIELD
 	b	loop_escape
+
+ escape_done:
+  	// Clear sting_activated state variable
+ 	ldr		r1, =sting_activated
+ 	mov		r0, #FALSE
+ 	strb	r0, [r1]
+
  	CORO_END
 
 /*****************************************************************************/
@@ -1472,18 +1481,22 @@ stop_and_release_motors:
  *
  **/
 update_systick_and_sleep:
-	push	{lr}
+	push	{r4, lr}
+
 	bl		tick_systick					// returns current systick in r0
 	ldr		r1, =loop_systick
-	ldr		r2, =EVENTLOOP_TICKCOUNT
+	ldr		r4, =EVENTLOOP_TICKCOUNT
 	ldr		r3, [r1]						// get current loop starting systick
-	add		r3, r3, r2						// r3 = next loop starting systick (may rollover)
+	add		r3, r3, r4						// r3 = next loop starting systick (may rollover)
 	subs	r2, r0, r3						// check (r2 = (current systick - next loop_systick)) < 0
 	bge		no_sleep						// false, so no sleeping
+	neg		r2, r2							// 2's complement of negative duration in r2
+	cmp		r2, r4
+	bhs		no_sleep						// Sleep Duration is greater than EVENTLOOP_TICKCOUNT
 
 go_sleep:
 	str		r3, [r1]						// Update next loop starting systick
-	neg		r0, r2							// 2's complement of negative duration in r2
+	mov		r0, r2							// Setup usleep duration
 	bl		usleep							// Call usleep()
 	b		exit_sleep
 
@@ -1494,8 +1507,12 @@ no_sleep:
 	add		r0, r0, #1
 	str		r0, [r1]						// Update loop_exceeded count
 
+#ifdef DEBUG_LOOPCOUNT_EXCEEDED
+	DISPLAY_DEBUG_INFO exceeded_loopcnt_str r0
+#endif
+
 exit_sleep:
-	pop		{pc}
+	pop		{r4, pc}
 
 /** init_robot
  *
@@ -1525,6 +1542,12 @@ init_robot:
 	strb	r0, [r1]
 
     pop     {pc}
+
+#if 0
+
+// WARNING: This routine somehow hangs the program
+// In addition, it is not necessary to use it since the Back button will exit the currently running program
+// launched from Brickman if press and held for 2 seconds
 
 /** check_exit
  *
@@ -1558,6 +1581,8 @@ back_key_pressed:
 done_exit_check:
 	pop		{pc}
 
+#endif
+
 /*****************************************************************************/
 
 /** input_controller
@@ -1582,10 +1607,12 @@ input_controller:
 input_coroutine_dispatcher:
 	mov		r4, #NUM_SENSORS				// Number of sensor inputs to process
 
+#if 0
 check_keypress:
 	bl		check_exit
 	cmp		r0, #TRUE
 	beq		flag_robot_quit
+#endif
 
 check_color_sensor:
 	CORO_CALL	sensor_color
