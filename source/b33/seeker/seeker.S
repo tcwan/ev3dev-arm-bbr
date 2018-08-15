@@ -28,6 +28,7 @@
 
 // Compilation Debugging Switches
 #undef DEBUG_MIN_MAX
+#define USE_USLEEP
 #define DEBUG_LOOPCOUNT_EXCEEDED
 
 
@@ -726,6 +727,18 @@ head_stopped:
 exit_has_head_stopped:
     pop     {pc}
 
+/** is_escape_movement_done
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   r0: TRUE if stopped, else FALSE
+  */
+is_escape_movement_done:
+	// FIXME
+	mov		r0, #FALSE
+	mov		pc, lr
+
 /*****************************************************************************/
 /* Utiilty Functions to setup Actuator Controller for Behavior Coroutines
 /*****************************************************************************/
@@ -850,6 +863,7 @@ color_loop:
 	record_systick color_last_systick	// record systick for current color sensor reading
  	mov		r0, #0						// value index
  	ldr		r1, =seqno_color
+ 	ldrb	r1, [r1]
  	ldr		r2, =color_intensity_array
 	add		r2, r2, r4, lsl #2			// setup address pointer for input value (index for 32-bit integer)
  	bl		get_sensor_value
@@ -858,7 +872,8 @@ color_loop:
  	beq		done_num_readings
 
 wait_next_reading:
-#if 1
+
+#ifdef USE_USLEEP
 	wait_3ms
 #else
  	bl		has_color_interval_elapsed
@@ -946,15 +961,13 @@ no_sting:
  *   None
  **/
 	BEHAVIOR_PROLOGUE	escape
-	push	{r4, r5}
-	// Setup state variable pointers
-	ldr		r4, =head_state
-	ldr		r5, =escape_state
+escape_start:
 
 	DISPLAY_ROBOT_STATE behavior_escapestr
 
 check_head_state:
-	ldrb	r0, [r4]						// Get current Head State
+	ldr		r3, =head_state					// Setup state variable pointer
+	ldrb	r0, [r3]						// Get current Head State
 	cmp		r0, #HEAD_UP					// Are we in desired state?
 	beq		check_escape_state				// yes, so skip checking
 
@@ -964,7 +977,7 @@ check_head_moving:
 
 config_head_movement:
 	mov		r0, #HEAD_MOVING_UP
-	strb	r0, [r4]						// Update Head State variable
+	strb	r0, [r3]						// Update Head State variable
 
 	// Record staring position
     ldr     r0, =head_prevpos
@@ -983,15 +996,17 @@ check_head_done:
 	bne		check_escape_state				// Head still moving
 
 update_head_state:
+	ldr		r3, =head_state					// Setup state variable pointer
 	mov		r0, #HEAD_UP					// Head done moving
-	strb	r0, [r4]						// Update Head State variable
+	strb	r0, [r3]						// Update Head State variable
 
 	// Stop Motor if we have not done so yet
 	ldr		r0, =motor_control_struct_head
 	bl		config_motor_stop				// Stop Head Motor movement
 
 check_escape_state:
-	ldrb	r0, [r5]						// Get current Escape State
+	ldr		r3, =escape_state				// Setup state variable pointer
+	ldrb	r0, [r3]						// Get current Escape State
 	cmp		r0, #ESCAPE_DONE				// Are we done escaping?
 	beq		check_behavior_escape_done		// yes, so check if we're all done with the behavior
 
@@ -1001,7 +1016,7 @@ check_escape_escaping:
 
 coonfig_escape:
 	mov		r0, #ESCAPE_ESCAPING
-	strb	r0, [r5]						// Update Escape State variable
+	strb	r0, [r3]						// Update Escape State variable
 
 	// Move X steps forward
 	bl		random							// Generate a random value in r0
@@ -1013,34 +1028,37 @@ coonfig_escape:
 	b		exit_behavior_escape			// Wait for next iteration of coroutine to check again
 
 check_escape_done:
-	bl		has_no_running_motors
+	bl		is_escape_movement_done
 	cmp		r0, #TRUE						// Are we done with escape movement?
 	bne		exit_behavior_escape			// No, so wait for next iteration of coroutine to check again
 
 update_escape_state:
+	ldr		r3, =escape_state				// Setup state variable pointer
 	mov		r0, #ESCAPE_DONE
-	strb	r0, [r5]						// Update Escape State variable
+	strb	r0, [r3]						// Update Escape State variable
 
 check_behavior_escape_done:
-	ldrb	r0, [r4]						// Get current Head State
+	ldr		r3, =head_state					// Setup state variable pointer
+	ldrb	r0, [r3]						// Get current Head State
 	cmp		r0, #HEAD_UP					// Are we in desired state?
 	bne		exit_behavior_escape			// No, so wait for next iteration of coroutine to check again
 
-	ldrb	r0, [r5]						// Get current Escape State
+	ldr		r3, =escape_state				// Setup state variable pointer
+	ldrb	r0, [r3]						// Get current Escape State
 	cmp		r0, #ESCAPE_DONE				// Are we done escaping?
 	bne		exit_behavior_escape			// No, so wait for next iteration of coroutine to check again
+
+update_behavior_escape_done:
+	// Reset Escape State
+	mov		r0, #ESCAPE_IDLE
+	strb	r0, [r3]						// Update Escape State variable
 
   	// Clear sting_activated state variable
  	ldr		r1, =sting_activated
  	mov		r0, #FALSE
  	strb	r0, [r1]
 
-	// Reset Escape State
-	mov		r0, #ESCAPE_IDLE
-	strb	r0, [r5]						// Update Escape State variable
-
 exit_behavior_escape:
-	pop		{r4, r5}
 	BEHAVIOR_EPILOGUE escape
 
 trigger_escape:
@@ -1186,6 +1204,7 @@ default_movement:
 	bl		config_motor_stop
 	b		exit_movement_selector
 
+/* WARNING: The following code assumes that r1-r2 are not destroyed by calling the subroutines */
 move_forward:
 	// Enable both motors forward
 	ldr		r0, =motor_control_struct_left
@@ -1217,71 +1236,6 @@ move_right:
 	ldr		r0, =motor_control_struct_right
 	bl		config_motor_stop
 	// b		exit_movement_selector
-
-#if 0
-
-move_forward_check:
-    cmp		r0, #MOVE_FORWARD
-    bne		move_reverse_check
-	// Enable Left Motor Forward
-    mov		r0, #TRUE
-    mov		r1, #TRUE
-    bl		motor_config_left
-    // Enable Right Motor Forward
-    mov		r0, #TRUE
-    mov		r1, #TRUE
-    bl		motor_config_right
-	b		exit_movement_selector
-
-move_reverse_check:
-    cmp		r0, #MOVE_REVERSE
-    bne		move_left_check
-	// Enable Left Motor Reverse
-    mov		r0, #TRUE
-    mov		r1, #FALSE
-    bl		motor_config_left
-    // Enable Right Motor Reverse
-    mov		r0, #TRUE
-    mov		r1, #FALSE
-    bl		motor_config_right
-	b		exit_movement_selector
-
-move_left_check:
-    cmp		r0, #MOVE_LEFT
-    bne		move_right_check
-	// Disable Left Motor
-    mov		r0, #FALSE
-    mov		r1, #FALSE
-    bl		motor_config_left
-    // Enable Right Motor Forward
-    mov		r0, #TRUE
-    mov		r1, #TRUE
-    bl		motor_config_right
-	b		exit_movement_selector
-
-move_right_check:
-    cmp		r0, #MOVE_RIGHT
-    bne		move_stop
-	// Enable Left Motor Forward
-    mov		r0, #TRUE
-    mov		r1, #TRUE
-    bl		motor_config_left
-    // Disable Right Motor
-    mov		r0, #FALSE
-    mov		r1, #FALSE
-    bl		motor_config_right
-	b		exit_movement_selector
-
-move_stop:
-	// Disable Left Motor
-    mov		r0, #FALSE
-    mov		r1, #FALSE
-    bl		motor_config_left
-    // Disable Right Motor
-    mov		r0, #FALSE
-    mov		r1, #FALSE
-    bl		motor_config_right
-#endif
 
 exit_movement_selector:
 	pop		{pc}
@@ -1658,10 +1612,12 @@ update_systick_and_sleep:
 
 go_sleep:
 	str		r3, [r1]						// Update next loop starting systick
-#if 1
+
+#ifdef USE_USLEEP
 	mov		r0, r2							// Setup usleep duration
 	bl		usleep							// Call usleep()
 	b		exit_sleep
+
 #else
 systick_busywait:
 	bl		tick_systick					// returns current systick in r0
@@ -1716,11 +1672,6 @@ init_robot:
 
     pop     {pc}
 
-#if 0
-
-// WARNING: This routine somehow hangs the program
-// In addition, it is not necessary to use it since the Back button will exit the currently running program
-// launched from Brickman if press and held for 2 seconds
 
 /** check_exit
  *
@@ -1728,6 +1679,8 @@ init_robot:
  *
  *   Note: ev3_read_keys check the instantaneous keypress state.
  *         It does not remember / buffer previous key presses
+ *
+ *   // WARNING: This routine can hang the program if called from inside a coroutine
  *
  * Parameters:
  *   None
@@ -1754,125 +1707,6 @@ back_key_pressed:
 done_exit_check:
 	pop		{pc}
 
-#endif
-
-#if 0
-/*****************************************************************************/
-
-/** input_controller
- *
- *   Poll all inputs and check key presses
- *
- * Parameters:
- *   None
- * Returns:
- *   None
- *
- * Register r4 is used as coroutine loop sensor coroutine counter
- **/
-input_controller:
-    push    {r4, lr}
-
-/************************ Begin Customization Here ***************************/
-
-	CORO_CONTEXT_INIT sensor_color			// reset color input gathering
-	CORO_CONTEXT_INIT sensor_touch			// reset touch input gathering
-
-
-input_coroutine_dispatcher:
-	mov		r4, #NUM_SENSORS				// Number of sensor inputs to process
-
-#if 0
-check_keypress:
-	bl		check_exit
-	cmp		r0, #TRUE
-	beq		flag_robot_quit
-#endif
-
-check_color_sensor:
-	CORO_CALL	sensor_color
-	cmp		r0, #CO_END
-    subeq   r4, r4, #1
-	bne		check_touch_sensor
-
-calc_min_max:
-	ldr		r0, =color_intensity_array
-	mov		r1, #NUM_COLOR_READINGS
-	ldr		r2, =color_intensity_min
-	ldr		r3, =color_intensity_max
-	bl		min_max_u32						// perform min-max calculation
-
-check_touch_sensor:
-	CORO_CALL	sensor_touch
-	cmp		r0, #CO_END
-    subeq   r4, r4, #1
-
-input_coroutine_continue:
-	cmp		r4, #0
-	beq		exit_input_controller			// Done with all the sensor inputs
-
-	// wait_500us								// Let task scheduler do something else
-	b		input_coroutine_dispatcher		// continue with next event loop
-
-flag_robot_quit:
-	ldr		r1, =robot_state
-	mov		r0, #ROBOT_QUIT
-	strb	r0, [r1]
-
-/************************* End Customization Here ****************************/
-exit_input_controller:
-	pop		{r4, pc}
-
-/** behavior_dispatcher
- *
- *   Incorporates behavior dispatcher and arbiter
- *
- *   This version implements fixed priority hierarchical arbitration
- *
- * Parameters:
- *   None
- * Returns:
- *   None
- *
- **/
-behavior_dispatcher:
-    push    {lr}
-
-/************************ Begin Customization Here ***************************/
-
-	bl		bhvr_escape
-	bl		bhvr_followpath
-	bl		bhvr_lower_head
-	bl		bhvr_idle			// Idle should always be the lowest priority behavior
-
-/************************* End Customization Here ****************************/
-
-	set_bhvr_suppress	FALSE	// Clear bhvr_suppress flag
-	pop		{pc}
-
-/** actuator_controller
- *
- *   Configure all actuator outputs
- *
- * Parameters:
- *   None
- * Returns:
- *   None
- *
- **/
-actuator_controller:
-    push    {lr}
-
-/************************ Begin Customization Here ***************************/
-
-	bl		actuator_head
-	bl		actuator_limbs
-
-/************************* End Customization Here ****************************/
-
-	pop		{pc}
-
-#endif
 
 /*****************************************************************************/
 
@@ -1903,7 +1737,7 @@ robot_setup:
 	// Initialize Coroutine Contexts
 	CORO_CONTEXT_INIT sensor_color			// reset color input gathering
 	CORO_CONTEXT_INIT sensor_touch			// reset touch input gathering
-	CORO_CONTEXT_INIT bhvr_escape			// Reset escape context
+
 	CORO_CONTEXT_INIT actuator_head			// Reset head actuator context
 	CORO_CONTEXT_INIT actuator_limbs		// Reset limbs actuator context
 
@@ -1914,15 +1748,16 @@ robot_setup:
 	record_systick loop_systick
 
 event_loop:
+
+	// Check Exit Keypress
+	bl		check_exit
+	cmp		r0, #TRUE
+	beq		robot_cleanup					// Exit detected
+
 /*****************************************************************************/
 	// Input Controller (Update sensor and keypress inputs)
 	CORO_CALL	sensor_color
 	CORO_CALL	sensor_touch
-
-	// Check if we need to quit
-	ldr		r0, [r4]
-	cmp		r0, #ROBOT_QUIT
-	beq		robot_cleanup					// Quit detected
 
 /*****************************************************************************/
 	// Behavior Dispatcher
