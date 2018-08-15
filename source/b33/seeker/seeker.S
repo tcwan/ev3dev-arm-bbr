@@ -183,7 +183,11 @@ countperrot:    .word   0                   // Tacho count per rotation (360 deg
 	MOTOR_CONTROL_STRUCT	left
 	MOTOR_CONTROL_STRUCT	right
 
-#if 1
+	MOTOR_CONTROL_STRUCT	prev_head
+	MOTOR_CONTROL_STRUCT	prev_left
+	MOTOR_CONTROL_STRUCT	prev_right
+
+#if 0
 // Check macro constant name expansion
 	.align
 mcs_size:			.word		motor_control_struct_size
@@ -552,6 +556,8 @@ exit_call_\behavior:
     .code 32
     .text
     .align
+
+#ifdef USE_USLEEP
 /*****************************************************************************/
 /* Utiilty Functions to support sensor_xxxx Coroutines
 /*****************************************************************************/
@@ -581,6 +587,8 @@ has_color_interval_elapsed:
 	movlt	r0, #FALSE
 	movge	r0, #TRUE
 	pop		{pc}
+
+#endif
 
 /*****************************************************************************/
 /* Utiilty Functions to support motor_xxxx Coroutine Macros
@@ -736,7 +744,7 @@ exit_has_head_stopped:
   */
 is_escape_movement_done:
 	// FIXME
-	mov		r0, #FALSE
+	mov		r0, #TRUE
 	mov		pc, lr
 
 /*****************************************************************************/
@@ -814,7 +822,26 @@ config_motor_reverse:
     .align
 
  	CORO_START	actuator_head
- 	NOP
+actuator_head_loop:
+ 	push	{r4, r5, r6, r7, r8, r9}
+ 	ldr		r8, =motor_control_struct_head
+ 	ldr		r9, =motor_control_struct_prev_head
+
+ 	ldrb	r0, [r8, #motor_enable_offset]
+ 	ldrb	r1, [r8, #motor_forward_offset]
+ 	ldrb	r2, [r8, #motor_numsteps_offset]
+ 	ldr		r3, [r8, #motor_speed_offset]
+ 	ldrb	r4, [r9, #motor_enable_offset]
+ 	ldrb	r5, [r9, #motor_forward_offset]
+ 	ldrb	r6, [r9, #motor_numsteps_offset]
+ 	ldr		r7, [r9, #motor_speed_offset]
+ 	cmp		r0, r4
+ 	beq		actuator_head_done
+
+actuator_head_done:
+ 	pop	{r4, r5, r6, r7, r8, r9}
+ 	CORO_YIELD
+ 	b		actuator_head_loop
  	CORO_END
 
 /*****************************************************************************/
@@ -1239,31 +1266,6 @@ move_right:
 
 exit_movement_selector:
 	pop		{pc}
-
-/** actuator_head
- *    head actuator controller
- *
- * Parameters:
- *   None
- * Returns:
- *   None
- **/
-actuator_head:
-    push    {lr}
-    pop     {pc}
-
-/** actuator_limbs
- *    left and right limb actuator controller
- *
- * Parameters:
- *   None
- * Returns:
- *   None
- **/
-actuator_limbs:
-    push    {lr}
-    pop     {pc}
-
 
 /*****************************************************************************/
 /** wait_500ms
@@ -1756,6 +1758,7 @@ event_loop:
 
 /*****************************************************************************/
 	// Input Controller (Update sensor and keypress inputs)
+input_controller:
 	CORO_CALL	sensor_color
 	CORO_CALL	sensor_touch
 
@@ -1764,6 +1767,7 @@ event_loop:
 	//   Execute behaviors based on priority as long as they are not suppressed
 	//   Else, reset the behavior
 	//
+behavior_dispatcher:
 	CALL_BEHAVIOR escape
 	CALL_BEHAVIOR followpath
 	CALL_BEHAVIOR lower_head
@@ -1772,6 +1776,7 @@ event_loop:
 
 /*****************************************************************************/
 	// Actuator Controller (Configure actuator outputs)
+actuator_controller:
 	CORO_CALL	actuator_head
 	CORO_CALL	actuator_limbs
 
