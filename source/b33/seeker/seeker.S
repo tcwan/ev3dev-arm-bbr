@@ -66,6 +66,11 @@
     ENUM_N		ROBOT_FOLLOW_PATH
     ENUM_N		ROBOT_ESCAPE
 
+    // Escape State Enums
+    ENUM_0		ESCAPE_IDLE
+    ENUM_N		ESCAPE_ESCAPING
+    ENUM_N		ESCAPE_DONE
+
     // Movement Enums
     ENUM_0		MOVE_STOP
     ENUM_N		MOVE_FORWARD
@@ -74,11 +79,11 @@
     ENUM_N		MOVE_RIGHT
 
     // Head Position Enums
-    ENUM_0		HEAD_DOWN
-    ENUM_N		HEAD_UP
+    ENUM_0		HEAD_UNKNOWN
+    ENUM_N		HEAD_DOWN
     ENUM_N		HEAD_MOVING_DOWN
     ENUM_N		HEAD_MOVING_UP
-    ENUM_N		HEAD_UNKNOWN
+    ENUM_N		HEAD_UP
 
     .data
     .align
@@ -198,6 +203,9 @@ sting_activated: .byte	FALSE
 
 /* Head Movement state variable */
 head_state:		.byte	HEAD_UNKNOWN
+
+/* Escape state variable */
+escape_state:	.byte	ESCAPE_IDLE
 
 /* Robot State variable */
 robot_state:	.byte	ROBOT_IDLE
@@ -520,46 +528,7 @@ call_\behavior:
 exit_call_\behavior:
 	.endm
 
-#if 0
-/** DEFINE_BEHAVIOR_ROUTINE
- *
- *	  Used to define Behaviors
- *
- *    Need to provide:
- *    - trigger_\behavior routine that returns TRUE if behavior should be activated
- *    - Coroutine Context \behavior to store behavior state
- *    - Coroutine \behavior to execute behavior tasks
- *
- * Parameters:
- *   None
- * Returns:
- *   None
- **/
- 	.macro	DEFINE_BEHAVIOR_ROUTINE behavior
-bhvr_\behavior:
-	push	{lr}
-	get_bhvr_suppress				// r0: Supressed flag (Boolean)
-	cmp		r0, #FALSE
-	beq		check_\behavior			// Not suppressed, so skip reset
-
-reset_\behavior:
-	CORO_CONTEXT_INIT \behavior		// reset behavior coroutine
-	b		exit_\behavior
-
-check_\behavior:
-	bl		trigger_\behavior		// Check activation conditions
-	cmp		r0, #FALSE
-	beq		exit_\behavior			// Not activated, so skip coroutine call
-
-call_\behavior:
-	CORO_CALL	\behavior
-	set_bhvr_suppress TRUE			// Suppress other behaviors
-
-exit_\behavior:
-	pop		{pc}
-
-	.endm
-#endif
+/*****************************************************************************/
 
 /** record_systick
  *
@@ -814,7 +783,7 @@ config_motor_reverse:
     DEFINE_COROUTINE_MOTOR right
 
 /*****************************************************************************/
-/** motor_head
+/** actuator_head
  *
  * Coroutine for Head Control
  *
@@ -825,13 +794,30 @@ config_motor_reverse:
     CORO_LOCAL   head_pos, byte, 0
 
     .align
- 	CORO_CONTEXT motor_head
+ 	CORO_CONTEXT actuator_head
 
     .code 32
     .text
     .align
 
- 	CORO_START	motor_head
+ 	CORO_START	actuator_head
+ 	NOP
+ 	CORO_END
+
+/*****************************************************************************/
+/** actuator_limbs
+ *
+ * Coroutine for Limbs Control
+ *
+ */
+    .align
+ 	CORO_CONTEXT actuator_limbs
+
+    .code 32
+    .text
+    .align
+
+ 	CORO_START	actuator_limbs
  	NOP
  	CORO_END
 
@@ -938,65 +924,6 @@ no_sting:
 
 
 /*****************************************************************************/
-/** Behavior Coroutine followpath
- *
- * Coroutine for Behavior followpath
- *
- */
-    // Coroutine Variables
-    .data
-    .align
- 	CORO_CONTEXT followpath
-
-    .code 32
-    .text
-    .align
-
-    // Trigger routine
-    // Returns TRUE if conditions met, FALSE otherwise
-trigger_followpath:
-	push	{lr}
-	mov		r0, #FALSE
-	pop		{pc}
-
- 	CORO_START	followpath
-loop_followpath:
-	DISPLAY_ROBOT_STATE behavior_followpathstr
-	CORO_YIELD
-	b	loop_followpath
- 	CORO_END
-
-/*****************************************************************************/
-/** Behavior Coroutine lower_head
- *
- * Coroutine for Behavior lower_head
- *
- */
-    // Coroutine Variables
-    .data
-    .align
- 	CORO_CONTEXT lower_head
-
-    .code 32
-    .text
-    .align
-
-    // Trigger routine
-    // Returns TRUE if conditions met, FALSE otherwise
-trigger_lower_head:
-	push	{lr}
-	mov		r0, #FALSE
-	pop		{pc}
-
- 	CORO_START	lower_head
-loop_lower_head:
-	DISPLAY_ROBOT_STATE behavior_lowerheadstr
-	CORO_YIELD
-	b		loop_lower_head
- 	CORO_END
-
-
-/*****************************************************************************/
 /* Behavior Routines
 /*****************************************************************************/
 
@@ -1008,36 +935,73 @@ loop_lower_head:
 /**
  *    Escape Behavior (Highest Priority)
  *
+ *    This behavior has two parts: move the head up, and escape by moving
+ *     the limbs forward X steps.
+ *
+ *    The status of the head movement and escape status are tracked using state variable.
+ *
  * Parameters:
  *   None
  * Returns:
  *   None
  **/
 	BEHAVIOR_PROLOGUE	escape
+	push	{r4, r5}
+	// Setup state variable pointers
+	ldr		r4, =head_state
+	ldr		r5, =escape_state
 
-loop_escape:
 	DISPLAY_ROBOT_STATE behavior_escapestr
-	set_bhvr_suppress TRUE			// Suppress other behaviors
-	// Raise Head
-	// FIXME: current head state is not checked
+
+check_head_state:
+	ldrb	r0, [r4]						// Get current Head State
+	cmp		r0, #HEAD_UP					// Are we in desired state?
+	beq		check_escape_state				// yes, so skip checking
+
+check_head_moving:
+	cmp		r0, #HEAD_MOVING_UP				// Are we currently moving the head?
+	beq		check_head_done					// yes, so skip update
+
+config_head_movement:
+	mov		r0, #HEAD_MOVING_UP
+	strb	r0, [r4]						// Update Head State variable
 
 	// Record staring position
     ldr     r0, =head_prevpos
     bl      record_head_position            // Record starting position for head motor
-
-	ldr		r1, =head_state
-	mov		r0, #HEAD_MOVING_UP
-	strb	r0, [r1]						// Update head state variable
 
 	// Setup Head Controller actions
 	ldr		r0, =motor_control_struct_head
 	mov		r1, #HEAD_MAX_SPEED
 	mov		r2, #0							// Num steps is not used by Head Controller
 	bl		config_motor_forward			// Start Head Motor movement
+	b		check_escape_state				// Take care of escape movement
 
-	ldr		r1, =head_state					// Update Head State variable
-	mov		r0, #HEAD_MOVING_UP
-	strb	r0, [r1]
+check_head_done:
+	bl		has_head_stopped
+	cmp		r0, #TRUE
+	bne		check_escape_state				// Head still moving
+
+update_head_state:
+	mov		r0, #HEAD_UP					// Head done moving
+	strb	r0, [r4]						// Update Head State variable
+
+	// Stop Motor if we have not done so yet
+	ldr		r0, =motor_control_struct_head
+	bl		config_motor_stop				// Stop Head Motor movement
+
+check_escape_state:
+	ldrb	r0, [r5]						// Get current Escape State
+	cmp		r0, #ESCAPE_DONE				// Are we done escaping?
+	beq		check_behavior_escape_done		// yes, so check if we're all done with the behavior
+
+check_escape_escaping:
+	cmp		r0, #ESCAPE_ESCAPING			// Are we still escaping?
+	beq		check_escape_done
+
+coonfig_escape:
+	mov		r0, #ESCAPE_ESCAPING
+	strb	r0, [r5]						// Update Escape State variable
 
 	// Move X steps forward
 	bl		random							// Generate a random value in r0
@@ -1046,48 +1010,38 @@ loop_escape:
 	mov		r0, #MOVE_FORWARD
 	ldr		r1, =TACHO_MAX_SPEED
 	bl		movement_selector				// Setup movement
-	CORO_YIELD
+	b		exit_behavior_escape			// Wait for next iteration of coroutine to check again
 
 check_escape_done:
-	push	{r4, r5}						// Needed to track has_head_stopped() and has_no_running_motors()
-	bl		has_head_stopped
-	mov		r4, r0							// r4: has_head_stopped status
 	bl		has_no_running_motors
-	mov		r5, r0							// r5: 	has_no_running_motors status
+	cmp		r0, #TRUE						// Are we done with escape movement?
+	bne		exit_behavior_escape			// No, so wait for next iteration of coroutine to check again
 
-check_head_position:
-	cmp		r4, #TRUE
-	bne		escape_not_done					// Escape behavior has not completed yet
+update_escape_state:
+	mov		r0, #ESCAPE_DONE
+	strb	r0, [r5]						// Update Escape State variable
 
-head_has_stopped:
-	ldr		r2, =head_state					// Update Head State variable
-	ldrb	r1, [r2]						// Get current Head State
-	mov		r0, #HEAD_UP
-	cmp		r0, r1							// Have we updated state previously?
-	beq		check_motor_done				// yes, so skip update
+check_behavior_escape_done:
+	ldrb	r0, [r4]						// Get current Head State
+	cmp		r0, #HEAD_UP					// Are we in desired state?
+	bne		exit_behavior_escape			// No, so wait for next iteration of coroutine to check again
 
-	// Stop Motor if we have not done so yet
-	strb	r0, [r2]						// Set Head State to UP
-	ldr		r0, =motor_control_struct_head
-	bl		config_motor_stop				// Stop Head Motor movement
+	ldrb	r0, [r5]						// Get current Escape State
+	cmp		r0, #ESCAPE_DONE				// Are we done escaping?
+	bne		exit_behavior_escape			// No, so wait for next iteration of coroutine to check again
 
-check_motor_done:
-	cmp		r5, #TRUE
-	beq		escape_done						// Behavior Completed
-
-escape_not_done:
-	pop		{r4, r5}						// Clean up stack
-	CORO_YIELD
-	b	check_escape_done					// Behavior not done yet, keep looping
-
- escape_done:
-	pop		{r4, r5}						// Clean up stack
   	// Clear sting_activated state variable
  	ldr		r1, =sting_activated
  	mov		r0, #FALSE
  	strb	r0, [r1]
 
- 	BEHAVIOR_EPILOGUE escape
+	// Reset Escape State
+	mov		r0, #ESCAPE_IDLE
+	strb	r0, [r5]						// Update Escape State variable
+
+exit_behavior_escape:
+	pop		{r4, r5}
+	BEHAVIOR_EPILOGUE escape
 
 trigger_escape:
 	ldr		r1, =sting_activated
@@ -1096,6 +1050,53 @@ trigger_escape:
 	movne	r0, #TRUE						// Touch Activated, so flag TRUE
 	mov		pc, lr
 
+/*****************************************************************************/
+/**
+ *    Follow Path Behavior
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   None
+ **/
+	BEHAVIOR_PROLOGUE	followpath
+
+	DISPLAY_ROBOT_STATE	behavior_followpathstr
+
+	BEHAVIOR_EPILOGUE followpath
+
+/** trigger_followpath
+ *
+ *    XXXXX
+ *
+ **/
+trigger_followpath:
+	mov		r0, #FALSE
+	mov		pc, lr
+
+/*****************************************************************************/
+/**
+ *    Lower Head Behavior
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   None
+ **/
+	BEHAVIOR_PROLOGUE	lower_head
+
+	DISPLAY_ROBOT_STATE	behavior_lowerheadstr
+
+	BEHAVIOR_EPILOGUE lower_head
+
+/** trigger_lower_head
+ *
+ *    XXXXX
+ *
+ **/
+trigger_lower_head:
+	mov		r0, #FALSE
+	mov		pc, lr
 
 /*****************************************************************************/
 /**
@@ -1106,9 +1107,9 @@ trigger_escape:
  * Returns:
  *   None
  **/
-	BEHAVIOR_PROLOGUE idle
+	BEHAVIOR_PROLOGUE	idle
 
-	DISPLAY_ROBOT_STATE behavior_idlestr
+	DISPLAY_ROBOT_STATE	behavior_idlestr
 
 	ldr		r0, =motor_control_struct_head
 	bl		config_motor_stop
