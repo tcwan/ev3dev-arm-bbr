@@ -31,7 +31,6 @@
 #define USE_USLEEP
 #define DEBUG_LOOPCOUNT_EXCEEDED
 
-
 /* Standard C Library routines */
 	.extern	random									// <stdlib.h>
 	.extern srandom									// <stdlib.h>
@@ -133,7 +132,7 @@ exceeded_loopcnt_str:	.asciz "Exceeded Count: "
 	// Speed control variables
 	// The struct layout groups similar sized variables to optimize space allocation with data alignment
 motor_control_struct_\side:
-motor_speed_\side:		.word	0
+motor_speed_\side:		.word	0				// absolute value (magnitude only)
 motor_enable_\side: 	.byte	FALSE
 motor_forward_\side:	.byte	FALSE
 motor_numsteps_\side:	.byte	0
@@ -216,7 +215,7 @@ escape_state:	.byte	ESCAPE_IDLE
 robot_state:	.byte	ROBOT_IDLE
 
 /* Behavior Suppression Boolean */
-bhvr_suppress:	.byte	TRUE
+	DEFINE_BHVR_SUPPRESS
 
 /*****************************************************************************/
 /* Device Sequence Numbers used by ev3dev-c
@@ -410,128 +409,6 @@ motor_end_\side:
     CORO_END
 
     .endm
-/*****************************************************************************/
-
-/** set_bhvr_suppress
- *
- *    Macro to set bhvr_suppress
- *
- * Parameters:
- *   flag: Boolean (TRUE or FALSE)
- * Returns:
- *   None
- *
- * Registers r0 and r1 are modified
- *
- **/
-	.macro	set_bhvr_suppress	condition
-	ldr		r1, =bhvr_suppress
-	mov		r0, #\condition
-	strb	r0, [r1]
-	.endm
-
-/** get_bhvr_suppress
- *
- *    Macro to get bhvr_suppress
- *
- * Parameters:
- *   None
- * Returns:
- *   r0: bhvr_suppress (TRUE or FALSE)
- *
- **/
-	.macro	get_bhvr_suppress
-	ldr		r0, =bhvr_suppress
-	ldrb	r0, [r0]
-	.endm
-
-
-/** BEHAVIOR_PROLOGUE
- *
- *	  Specify Behavior Coroutine Preamble (standard processing steps)
- *
- *    The logic checks that the behavior is not suppressed, and the trigger is activated
- *    then execute the behavior code (and Suppress lower priority behaviors).
- *
- *    If the behavior is not triggered, the coroutine is reset for next invocation
- *
- *    Need to provide:
- *    - trigger_\behavior routine that returns TRUE if behavior should be activated
- *
- * Parameters:
- *   behavior: Name of Behavior
- * Returns:
- *   None
- **/
- 	.macro	BEHAVIOR_PROLOGUE behavior
-     // Coroutine Variables
-    .data
-    .align
- 	CORO_CONTEXT bhvr_\behavior
-
-    .code 32
-    .text
-    .align
-
- 	CORO_START	bhvr_\behavior
-
-check_trigger_\behavior:
-	bl		trigger_\behavior		// Check activation conditions
-	cmp		r0, #TRUE
-	beq		exec_\behavior			// Activated, so continue
-
-reset_\behavior:
-	CORO_RESTART					// Behavior not activated, yield
-
-exec_\behavior:
-	set_bhvr_suppress TRUE			// Suppress other behaviors
-	.endm
-
-
-/** BEHAVIOR_EPILOGUE
- *
- *	  Specify Behavior Coroutine Epilogue (standard processing steps)
- *
- *    The EPILOGUE just yields the processor, and loops back to the start of the behavior coroutine
- *    for the next invocation to check if it was Suppressed, triggered, etc.
- *
- * Parameters:
- *   behavior: Name of Behavior
- * Returns:
- *   None
- **/
- 	.macro	BEHAVIOR_EPILOGUE behavior
- 	CORO_YIELD
- 	b		check_trigger_\behavior
-#if 0
-	// Not Needed since we never execute it
- 	CORO_END
-#endif
-	.endm
-
-/** CALL_BEHAVIOR
- *
- *	  Call Non-suppressed Behavior Coroutine using the behavior name
- *
- * Parameters:
- *   behavior: Name of Behavior
- * Returns:
- *   None
- **/
- 	.macro	CALL_BEHAVIOR behavior
- 	get_bhvr_suppress				// r0: Supressed flag (Boolean)
-	cmp		r0, #FALSE
- 	beq		call_\behavior
-
- reinit_\behavior:
- 	CORO_CONTEXT_INIT bhvr_\behavior // reset behavior coroutine
-	b		exit_call_\behavior
-
-call_\behavior:
- 	CORO_CALL	bhvr_\behavior
-
-exit_call_\behavior:
-	.endm
 
 /*****************************************************************************/
 
@@ -619,7 +496,7 @@ has_no_running_motors:
  *    r0: pointer to tacho target position
  *    r1: signed target position delta (forward/reverse)
  * Returns:
- *   None
+ *    None
  */
 advance_tacho_target_position:
     ldr     r2, [r0]                        // old target position
@@ -631,12 +508,12 @@ advance_tacho_target_position:
 /** set_targetpos_and_start_tacho
  *
  * Parameters:
- *   r0: motor sequence number
- *   r1: pointer to tacho target position
- *   r2: signed relative position delta
- *   r3: signed speed
+ *    r0: limb motor sequence number
+ *    r1: pointer to tacho target position
+ *    r2: signed relative position delta
+ *    r3: signed speed
  * Returns:
- *   None
+ *    None
  */
 set_targetpos_and_start_tacho:
     push    {r4, r5, lr}
@@ -670,9 +547,9 @@ set_targetpos_and_start_tacho:
 /** stop_tacho
  *
  * Parameters:
- *    r0: motor sequence number
+ *    r0: limb motor sequence number
  * Returns:
- *   None
+ *    None
  */
 stop_tacho:
     push    {lr}
@@ -682,6 +559,47 @@ stop_tacho:
     ldr     r0, [r1]
     sub     r0, r0, #1
     str     r0, [r1]                        // decrement num_running_motors
+    pop     {pc}
+
+/** start_head
+ *
+ * Parameters:
+ *    r0: forward (boolean)
+ *    r1: speed (magnitude)
+ * Returns:
+ *    None
+ */
+start_head:
+    push    {r4, lr}
+    ldr		r4, =seqno_head
+    ldrb	r4, [r4]
+
+    // Setup motor speed
+    cmp		r0, #TRUE						// is it forward
+    negne	r1, r1							// 2's complement of speed if reverse
+
+    mov     r0, r4                          // retrieve motor sequence number
+    bl      set_tacho_speed_sp
+
+	// Start motor
+    mov     r0, r4                          // retrieve motor sequence number
+    mov     r1, #HEAD_RUN_MODE             // configure run mode
+    bl      set_tacho_command_inx
+    pop     {r4, pc}
+
+/** stop_head
+ *
+ * Parameters:
+ *    None
+ * Returns:
+ *    None
+ */
+stop_head:
+    push    {lr}
+    ldr		r0, =seqno_head
+    ldrb	r0, [r0]
+    mov     r1, #TACHO_STOP                 // stop motor
+    bl      set_tacho_command_inx
     pop     {pc}
 
 /*****************************************************************************/
@@ -798,6 +716,84 @@ config_motor_reverse:
     mov		pc, lr
 
 /*****************************************************************************/
+/** movement_selector
+ *
+ *   Setup Limb Movement based on enum input
+ *
+ *   MOVE_STOP    0: stop movement (default)
+ *   MOVE_FORWARD 1: straight ahead (both motor forward)
+ *   MOVE_REVERSE 2: straight back (both motor reverse)
+ *   MOVE_LEFT    3: circle to the left (right motor forward)
+ *   MOVE_RIGHT   4: circle to the right (left motor forward)
+ *
+ *   NOTE: Customize according to robot design
+ *
+ * Parameters:
+ *   r0: Movement type Enum
+ *   r1: Movement Speed
+ *   r2: Number of Steps
+ * Returns:
+ *   None
+ *
+ **/
+movement_selector:
+	push	{lr}
+
+enum_check:
+	cmp		r0, #MOVE_FORWARD
+	beq		move_forward
+	cmp		r0, #MOVE_REVERSE
+	beq		move_reverse
+	cmp		r0, #MOVE_LEFT
+	beq		move_left
+	cmp		r0, #MOVE_RIGHT
+	beq		move_right
+
+default_movement:
+	// r0 == MOVE_STOP or unknown value
+	ldr		r0, =motor_control_struct_left
+	bl		config_motor_stop
+	ldr		r0, =motor_control_struct_right
+	bl		config_motor_stop
+	b		exit_movement_selector
+
+/* WARNING: The following code assumes that r1-r2 are not destroyed by calling the subroutines */
+move_forward:
+	// Enable both motors forward
+	ldr		r0, =motor_control_struct_left
+	bl		config_motor_forward
+	ldr		r0, =motor_control_struct_right
+	bl		config_motor_forward
+	b		exit_movement_selector
+
+move_reverse:
+	// Enable both motors reverse
+	ldr		r0, =motor_control_struct_left
+	bl		config_motor_reverse
+	ldr		r0, =motor_control_struct_right
+	bl		config_motor_reverse
+	b		exit_movement_selector
+
+move_left:
+	// Disable left motor, enable right motor forward
+	ldr		r0, =motor_control_struct_left
+	bl		config_motor_stop
+	ldr		r0, =motor_control_struct_right
+	bl		config_motor_forward
+	b		exit_movement_selector
+
+move_right:
+	// Enable left motor forward, disable right motor
+	ldr		r0, =motor_control_struct_left
+	bl		config_motor_forward
+	ldr		r0, =motor_control_struct_right
+	bl		config_motor_stop
+	// b		exit_movement_selector
+
+exit_movement_selector:
+	pop		{pc}
+
+/*****************************************************************************/
 /* Coroutine Instantiation
 /*****************************************************************************/
     DEFINE_COROUTINE_MOTOR left
@@ -808,56 +804,96 @@ config_motor_reverse:
  *
  * Coroutine for Head Control
  *
+ * Note: Since we're using push/pop in the Coroutine, there should not be any CORO_* macro calls
+ *       between the push and the pop instructions
+ *
+ *	// Ignore numsteps parameter
+ *
+ *	If (head.enabled != prev_head.enabled)
+ *		configure motor for stop or start
+ *	Else
+ *		if (head.enabled) and
+ *         ((head.speed != head_prev.speed) || head.forward != head_prev.forward))
+ *		update motor control parameters
+ *
  */
-    // Coroutine Variables for motor_head
-    .data
-    .align
-    CORO_LOCAL   head_pos, byte, 0
 
-    .align
  	CORO_CONTEXT actuator_head
-
-    .code 32
-    .text
-    .align
-
  	CORO_START	actuator_head
 actuator_head_loop:
- 	push	{r4, r5, r6, r7, r8, r9}
- 	ldr		r8, =motor_control_struct_head
- 	ldr		r9, =motor_control_struct_prev_head
+ 	push	{r4, r5, r6, r7, r8}
+ 	ldr		r7, =motor_control_struct_head
+ 	ldr		r8, =motor_control_struct_prev_head
 
- 	ldrb	r0, [r8, #motor_enable_offset]
- 	ldrb	r1, [r8, #motor_forward_offset]
- 	ldrb	r2, [r8, #motor_numsteps_offset]
- 	ldr		r3, [r8, #motor_speed_offset]
- 	ldrb	r4, [r9, #motor_enable_offset]
- 	ldrb	r5, [r9, #motor_forward_offset]
- 	ldrb	r6, [r9, #motor_numsteps_offset]
- 	ldr		r7, [r9, #motor_speed_offset]
+	// Current Head Actuator settings
+ 	ldrb	r0, [r7, #motor_enable_offset]
+ 	ldr		r1, [r7, #motor_speed_offset]
+ 	mov		r2, #0		// Reserved for numsteps parameter (not used)
+ 	ldrb	r3, [r7, #motor_forward_offset]
+ 	// Previous Head Actuator settings
+ 	ldrb	r4, [r8, #motor_enable_offset]
+ 	ldr		r5, [r8, #motor_speed_offset]
+ 	ldrb	r6, [r8, #motor_forward_offset]
+ 	// Update Previous Head Actuator settings with new requests
+ 	strb	r0, [r8, #motor_enable_offset]
+ 	str		r1, [r8, #motor_speed_offset]
+ 	strb	r2, [r8, #motor_numsteps_offset]	// Clear numsteps
+ 	strb	r3, [r8, #motor_forward_offset]
+
+ check_head_motor_statechange:
  	cmp		r0, r4
- 	beq		actuator_head_done
+ 	bne		head_motor_statechange
+
+check_head_motor_update:
+ 	cmp		r0, #TRUE			// Head actuator enabled?
+ 	bne		actuator_head_done	// Stopped, so nothing else to check
+
+compare_head_motor_speeds:
+	cmp		r1, r5				// Compare speeds
+	bne		head_motor_start	// Update motor config if different
+
+compare_head_motor_direction:
+	cmp		r3, r6
+	bne		head_motor_start	// Update motor config if different
+
+	b		actuator_head_done	// No match, so exit
+
+head_motor_statechange:
+ 	cmp		r0, #TRUE			// Head actuator enabled?
+ 	bne		head_motor_stop
+
+ head_motor_start:
+ 	mov		r0, r3				// r0: forward, r1: speed
+ 	bl		start_head
+	b		actuator_head_done
+
+head_motor_stop:
+	bl		stop_head
 
 actuator_head_done:
- 	pop	{r4, r5, r6, r7, r8, r9}
+ 	pop	{r4, r5, r6, r7, r8}
  	CORO_YIELD
  	b		actuator_head_loop
  	CORO_END
 
 /*****************************************************************************/
-/** actuator_limbs
+/** actuator_limb_left
  *
- * Coroutine for Limbs Control
+ * Coroutine for Limb Left Motor Control
  *
  */
-    .align
- 	CORO_CONTEXT actuator_limbs
+ 	CORO_CONTEXT actuator_limb_left
+ 	CORO_START	actuator_limb_left
+ 	NOP
+ 	CORO_END
 
-    .code 32
-    .text
-    .align
-
- 	CORO_START	actuator_limbs
+/** actuator_limb_right
+ *
+ * Coroutine for Limb Right Motor Control
+ *
+ */
+ 	CORO_CONTEXT actuator_limb_right
+ 	CORO_START	actuator_limb_right
  	NOP
  	CORO_END
 
@@ -868,17 +904,10 @@ actuator_head_done:
  *
  */
     // Coroutine Variables for sensor_color
-    .data
     .align
     CORO_LOCAL	 color_index, byte, 0
 
-    .align
  	CORO_CONTEXT sensor_color
-
-    .code 32
-    .text
-    .align
-
  	CORO_START	sensor_color
 color_loop:
  	push	{r4}						// preserve temporary variable registers
@@ -930,14 +959,7 @@ done_num_readings:
  *
  */
     // Coroutine Variables for sensor_touch
-    .data
-    .align
  	CORO_CONTEXT sensor_touch
-
-    .code 32
-    .text
-    .align
-
  	CORO_START	sensor_touch
  touch_loop:
     mov     r0, #0
@@ -1182,90 +1204,12 @@ trigger_idle:
 	mov		pc, lr
 
 /*****************************************************************************/
-/* Actuator Routines
+/* Robot Configuration and Utility Routines
 /*****************************************************************************/
 
     .code 32
     .text
     .align
-
-/*****************************************************************************/
-/** movement_selector
- *
- *   Setup Limb Movement based on enum input
- *
- *   MOVE_STOP    0: stop movement (default)
- *   MOVE_FORWARD 1: straight ahead (both motor forward)
- *   MOVE_REVERSE 2: straight back (both motor reverse)
- *   MOVE_LEFT    3: circle to the left (right motor forward)
- *   MOVE_RIGHT   4: circle to the right (left motor forward)
- *
- *   NOTE: Customize according to robot design
- *
- * Parameters:
- *   r0: Movement type Enum
- *   r1: Movement Speed
- *   r2: Number of Steps
- * Returns:
- *   None
- *
- **/
-movement_selector:
-	push	{lr}
-
-enum_check:
-	cmp		r0, #MOVE_FORWARD
-	beq		move_forward
-	cmp		r0, #MOVE_REVERSE
-	beq		move_reverse
-	cmp		r0, #MOVE_LEFT
-	beq		move_left
-	cmp		r0, #MOVE_RIGHT
-	beq		move_right
-
-default_movement:
-	// r0 == MOVE_STOP or unknown value
-	ldr		r0, =motor_control_struct_left
-	bl		config_motor_stop
-	ldr		r0, =motor_control_struct_right
-	bl		config_motor_stop
-	b		exit_movement_selector
-
-/* WARNING: The following code assumes that r1-r2 are not destroyed by calling the subroutines */
-move_forward:
-	// Enable both motors forward
-	ldr		r0, =motor_control_struct_left
-	bl		config_motor_forward
-	ldr		r0, =motor_control_struct_right
-	bl		config_motor_forward
-	b		exit_movement_selector
-
-move_reverse:
-	// Enable both motors reverse
-	ldr		r0, =motor_control_struct_left
-	bl		config_motor_reverse
-	ldr		r0, =motor_control_struct_right
-	bl		config_motor_reverse
-	b		exit_movement_selector
-
-move_left:
-	// Disable left motor, enable right motor forward
-	ldr		r0, =motor_control_struct_left
-	bl		config_motor_stop
-	ldr		r0, =motor_control_struct_right
-	bl		config_motor_forward
-	b		exit_movement_selector
-
-move_right:
-	// Enable left motor forward, disable right motor
-	ldr		r0, =motor_control_struct_left
-	bl		config_motor_forward
-	ldr		r0, =motor_control_struct_right
-	bl		config_motor_stop
-	// b		exit_movement_selector
-
-exit_movement_selector:
-	pop		{pc}
 
 /*****************************************************************************/
 /** wait_500ms
@@ -1639,7 +1583,7 @@ no_sleep:
 	str		r0, [r1]						// Update loop_exceeded count
 
 #ifdef DEBUG_LOOPCOUNT_EXCEEDED
-	DISPLAY_DEBUG_INFO exceeded_loopcnt_str r0
+	DISPLAY_DEBUG_INT exceeded_loopcnt_str r0
 #endif
 
 exit_sleep:
@@ -1741,7 +1685,8 @@ robot_setup:
 	CORO_CONTEXT_INIT sensor_touch			// reset touch input gathering
 
 	CORO_CONTEXT_INIT actuator_head			// Reset head actuator context
-	CORO_CONTEXT_INIT actuator_limbs		// Reset limbs actuator context
+	CORO_CONTEXT_INIT actuator_limb_left	// Reset limbs actuator context
+	CORO_CONTEXT_INIT actuator_limb_right	// Reset limbs actuator context
 
 	// Suppress all behaviors on first pass to reset behaviors
 	set_bhvr_suppress	TRUE
@@ -1778,7 +1723,8 @@ behavior_dispatcher:
 	// Actuator Controller (Configure actuator outputs)
 actuator_controller:
 	CORO_CALL	actuator_head
-	CORO_CALL	actuator_limbs
+	CORO_CALL	actuator_limb_left
+	CORO_CALL	actuator_limb_right
 
 /*****************************************************************************/
 

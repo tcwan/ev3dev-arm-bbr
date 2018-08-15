@@ -18,6 +18,7 @@
 #include "enum-asm.h"		// Enum macros
 #include "arm-stddef.h"		// Standard definitions for NULL, TRUE, FALSE
 #include "arm-coroutine.h"	// Coroutines support in ARM Assembly
+#include "arm-bbr-macros.h"	// BBR Coroutine Macros
 #include "interwork.h"		// Interworking macros
 
 #endif

@@ -88,6 +88,8 @@
     bl      usleep
 	.endm
 
+	.extern	prog_contentX
+
 /** DISPLAY_ROBOT_STATE
  *
  *    Macro to Display status on LCD screen
@@ -98,17 +100,15 @@
  *   None
  *
  **/
-	.extern	prog_contentX
-
 	.macro	DISPLAY_ROBOT_STATE	status_str
     ldr     r0, =\status_str
     mov		r1, #ROBOT_STATE_ROW
     bl      prog_contentX
 	.endm
 
-/** DISPLAY_DEBUG_INFO
+/** DISPLAY_DEBUG_INT
  *
- *    Macro to Display Debug Info on LCD screen
+ *    Macro to Display Integer Debug Info on LCD screen
  *
  * Parameters:
  *   debug_str: Address of Debug string
@@ -117,9 +117,7 @@
  *   None
  *
  **/
-	.extern	prog_contentX
-
-	.macro	DISPLAY_DEBUG_INFO	debug_str int_reg
+	.macro	DISPLAY_DEBUG_INT	debug_str int_reg
 	push 	{\int_reg}
 	ldr     r0, =\debug_str
 	mov		r1, #ROBOT_DEBUG_ROW

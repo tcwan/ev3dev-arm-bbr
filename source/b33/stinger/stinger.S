@@ -105,7 +105,9 @@ seqno_touch:    .byte    0
     .macro      DEFINE_COROUTINE_MOTOR    side
 
     // Coroutine Variables for motor_\side
+#if 0
     .data
+#endif
     .align
     CORO_LOCAL		count_\side, byte, 0
 
