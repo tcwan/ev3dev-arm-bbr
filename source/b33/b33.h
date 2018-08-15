@@ -58,6 +58,21 @@
 	bl      usleep
 	.endm
 
+/** WAIT_3MS
+ *
+ *    Macro to call usleep for 3 ms
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   r0: 0 if successful, -1 if error (errno set)
+ *
+ **/
+	.macro	WAIT_3MS
+	ldr     r0, =SLEEP_DURATION_3MS
+	bl      usleep
+	.endm
+
 /** WAIT_10MS
  *
  *    Macro to call usleep for 10 ms

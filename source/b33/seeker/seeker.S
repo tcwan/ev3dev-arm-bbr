@@ -433,6 +433,94 @@ motor_end_\side:
 	.endm
 
 
+/** BEHAVIOR_PROLOGUE
+ *
+ *	  Specify Behavior Coroutine Preamble (standard processing steps)
+ *
+ *    The logic checks that the behavior is not suppressed, and the trigger is activated
+ *    then execute the behavior code (and Suppress lower priority behaviors).
+ *
+ *    If the behavior is not triggered, the coroutine is reset for next invocation
+ *
+ *    Need to provide:
+ *    - trigger_\behavior routine that returns TRUE if behavior should be activated
+ *
+ * Parameters:
+ *   behavior: Name of Behavior
+ * Returns:
+ *   None
+ **/
+ 	.macro	BEHAVIOR_PROLOGUE behavior
+     // Coroutine Variables
+    .data
+    .align
+ 	CORO_CONTEXT bhvr_\behavior
+
+    .code 32
+    .text
+    .align
+
+ 	CORO_START	bhvr_\behavior
+
+check_trigger_\behavior:
+	bl		trigger_\behavior		// Check activation conditions
+	cmp		r0, #TRUE
+	beq		exec_\behavior			// Activated, so continue
+
+reset_\behavior:
+	CORO_RESTART					// Behavior not activated, yield
+
+exec_\behavior:
+	set_bhvr_suppress TRUE			// Suppress other behaviors
+	.endm
+
+
+/** BEHAVIOR_EPILOGUE
+ *
+ *	  Specify Behavior Coroutine Epilogue (standard processing steps)
+ *
+ *    The EPILOGUE just yields the processor, and loops back to the start of the behavior coroutine
+ *    for the next invocation to check if it was Suppressed, triggered, etc.
+ *
+ * Parameters:
+ *   behavior: Name of Behavior
+ * Returns:
+ *   None
+ **/
+ 	.macro	BEHAVIOR_EPILOGUE behavior
+ 	CORO_YIELD
+ 	b		check_trigger_\behavior
+#if 0
+	// Not Needed since we never execute it
+ 	CORO_END
+#endif
+	.endm
+
+/** CALL_BEHAVIOR
+ *
+ *	  Call Non-suppressed Behavior Coroutine using the behavior name
+ *
+ * Parameters:
+ *   behavior: Name of Behavior
+ * Returns:
+ *   None
+ **/
+ 	.macro	CALL_BEHAVIOR behavior
+ 	get_bhvr_suppress				// r0: Supressed flag (Boolean)
+	cmp		r0, #FALSE
+ 	beq		call_\behavior
+
+ reinit_\behavior:
+ 	CORO_CONTEXT_INIT bhvr_\behavior // reset behavior coroutine
+	b		exit_call_\behavior
+
+call_\behavior:
+ 	CORO_CALL	bhvr_\behavior
+
+exit_call_\behavior:
+	.endm
+
+#if 0
 /** DEFINE_BEHAVIOR_ROUTINE
  *
  *	  Used to define Behaviors
@@ -471,7 +559,7 @@ exit_\behavior:
 	pop		{pc}
 
 	.endm
-
+#endif
 
 /** record_systick
  *
@@ -766,18 +854,12 @@ config_motor_reverse:
     .align
 
  	CORO_START	sensor_color
-
- 	ldr		r1, =color_index
- 	mov		r0, #NUM_COLOR_READINGS
- 	strb	r0, [r1]					// initialize color_index
-
+color_loop:
+ 	push	{r4}						// preserve temporary variable registers
+ 	mov		r4, #NUM_COLOR_READINGS
 
  next_color_reading:
- 	push	{r4, r5}					// preserve temporary variable registers
- 	ldr		r5, =color_index
- 	ldrb	r4, [r5]					// retrieve color_index into r4
- 	sub		r4, r4, #1					// point to current index
- 	strb	r4, [r5]					// update current color_index in memory
+  	sub		r4, r4, #1					// point to current index
 
 	record_systick color_last_systick	// record systick for current color sensor reading
  	mov		r0, #0						// value index
@@ -787,14 +869,30 @@ config_motor_reverse:
  	bl		get_sensor_value
 
 	cmp		r4, #0						// have we collected all of them?
- 	pop		{r4, r5}					// restore temporary variable registers
- 	beq		done_sensor_color
+ 	beq		done_num_readings
 
 wait_next_reading:
- 	CORO_WAIT	has_color_interval_elapsed
+#if 1
+	wait_3ms
+#else
+ 	bl		has_color_interval_elapsed
+ 	cmp		r0, #TRUE
+ 	bne		wait_next_reading
+#endif
+ 	// Interval Elapsed
  	b		next_color_reading
 
-done_sensor_color:
+done_num_readings:
+	ldr		r0, =color_intensity_array
+	mov		r1, #NUM_COLOR_READINGS
+	ldr		r2, =color_intensity_min
+	ldr		r3, =color_intensity_max
+	bl		min_max_u32					// perform min-max calculation
+
+ 	pop		{r4}						// restore temporary variable registers
+	CORO_YIELD
+	b		color_loop
+
  	CORO_END
 
 /*****************************************************************************/
@@ -813,6 +911,7 @@ done_sensor_color:
     .align
 
  	CORO_START	sensor_touch
+ touch_loop:
     mov     r0, #0
     ldr		r1, =seqno_touch				// pointer to touch sensor sequence number
     ldrb	r1, [r1]						// touch sensor sequence number
@@ -828,19 +927,26 @@ done_sensor_color:
 
 	mov		r0, #TRUE
 	strb	r0, [r1]						// Only set state variable, cleared by behavior
+
 no_sting:
+	CORO_YIELD
+	b		touch_loop
+
  	CORO_END
 
 /*****************************************************************************/
-/** Behavior Coroutine escape
+
+
+/*****************************************************************************/
+/** Behavior Coroutine followpath
  *
- * Coroutine for Behavior escape
+ * Coroutine for Behavior followpath
  *
  */
     // Coroutine Variables
     .data
     .align
- 	CORO_CONTEXT escape
+ 	CORO_CONTEXT followpath
 
     .code 32
     .text
@@ -848,17 +954,70 @@ no_sting:
 
     // Trigger routine
     // Returns TRUE if conditions met, FALSE otherwise
-trigger_escape:
-	ldr		r1, =sting_activated
-	ldrb	r0, [r1]
-	cmp		r0, #FALSE
-	movne	r0, #TRUE						// Touch Activated, so flag TRUE
-	mov		pc, lr
+trigger_followpath:
+	push	{lr}
+	mov		r0, #FALSE
+	pop		{pc}
 
- 	CORO_START	escape
+ 	CORO_START	followpath
+loop_followpath:
+	DISPLAY_ROBOT_STATE behavior_followpathstr
+	CORO_YIELD
+	b	loop_followpath
+ 	CORO_END
+
+/*****************************************************************************/
+/** Behavior Coroutine lower_head
+ *
+ * Coroutine for Behavior lower_head
+ *
+ */
+    // Coroutine Variables
+    .data
+    .align
+ 	CORO_CONTEXT lower_head
+
+    .code 32
+    .text
+    .align
+
+    // Trigger routine
+    // Returns TRUE if conditions met, FALSE otherwise
+trigger_lower_head:
+	push	{lr}
+	mov		r0, #FALSE
+	pop		{pc}
+
+ 	CORO_START	lower_head
+loop_lower_head:
+	DISPLAY_ROBOT_STATE behavior_lowerheadstr
+	CORO_YIELD
+	b		loop_lower_head
+ 	CORO_END
+
+
+/*****************************************************************************/
+/* Behavior Routines
+/*****************************************************************************/
+
+    .code 32
+    .text
+    .align
+
+/*****************************************************************************/
+/**
+ *    Escape Behavior (Highest Priority)
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   None
+ **/
+	BEHAVIOR_PROLOGUE	escape
 
 loop_escape:
 	DISPLAY_ROBOT_STATE behavior_escapestr
+	set_bhvr_suppress TRUE			// Suppress other behaviors
 	// Raise Head
 	// FIXME: current head state is not checked
 
@@ -928,116 +1087,18 @@ escape_not_done:
  	mov		r0, #FALSE
  	strb	r0, [r1]
 
- 	CORO_END
+ 	BEHAVIOR_EPILOGUE escape
 
-/*****************************************************************************/
-/** Behavior Coroutine followpath
- *
- * Coroutine for Behavior followpath
- *
- */
-    // Coroutine Variables
-    .data
-    .align
- 	CORO_CONTEXT followpath
-
-    .code 32
-    .text
-    .align
-
-    // Trigger routine
-    // Returns TRUE if conditions met, FALSE otherwise
-trigger_followpath:
-	push	{lr}
-	mov		r0, #FALSE
-	pop		{pc}
-
- 	CORO_START	followpath
-loop_followpath:
-	DISPLAY_ROBOT_STATE behavior_followpathstr
-	CORO_YIELD
-	b	loop_followpath
- 	CORO_END
-
-/*****************************************************************************/
-/** Behavior Coroutine lower_head
- *
- * Coroutine for Behavior lower_head
- *
- */
-    // Coroutine Variables
-    .data
-    .align
- 	CORO_CONTEXT lower_head
-
-    .code 32
-    .text
-    .align
-
-    // Trigger routine
-    // Returns TRUE if conditions met, FALSE otherwise
-trigger_lower_head:
-	push	{lr}
-	mov		r0, #FALSE
-	pop		{pc}
-
- 	CORO_START	lower_head
-loop_lower_head:
-	DISPLAY_ROBOT_STATE behavior_lowerheadstr
-	CORO_YIELD
-	b		loop_lower_head
- 	CORO_END
-
-/*****************************************************************************/
-/** Behavior Coroutine idle
- *
- * Coroutine for Behavior idle
- *
- */
-    // Coroutine Variables
-    .data
-    .align
- 	CORO_CONTEXT idle
-
-    .code 32
-    .text
-    .align
-
- 	CORO_START	idle
-
-loop_idle:
-	DISPLAY_ROBOT_STATE behavior_idlestr
-	ldr		r0, =motor_control_struct_head
-	bl		config_motor_stop
-	// Use movement routine to setup actuator controller
-	mov		r0, #MOVE_STOP
-	bl		movement_selector				// Setup movement
-
-#if 0
-	ldr		r0, =motor_control_struct_left
-	bl		config_motor_stop
-	ldr		r0, =motor_control_struct_right
-	bl		config_motor_stop
-#endif
-	CORO_YIELD
-	b		loop_idle
- 	CORO_END
+trigger_escape:
+	ldr		r1, =sting_activated
+	ldrb	r0, [r1]
+	cmp		r0, #FALSE
+	movne	r0, #TRUE						// Touch Activated, so flag TRUE
+	mov		pc, lr
 
 
 /*****************************************************************************/
-/* Behavior Routines
-/*****************************************************************************/
-
-    .code 32
-    .text
-    .align
-
-	DEFINE_BEHAVIOR_ROUTINE escape		// Highest priority
-	DEFINE_BEHAVIOR_ROUTINE followpath
-	DEFINE_BEHAVIOR_ROUTINE lower_head
-
-/*****************************************************************************/
-/** bhvr_idle
+/**
  *    Idle Behavior (Lowest Priority)
  *
  * Parameters:
@@ -1045,18 +1106,34 @@ loop_idle:
  * Returns:
  *   None
  **/
-bhvr_idle:
-	push	{lr}
-	get_bhvr_suppress				// r0: Supressed flag (Boolean)
-	cmp		r0, #TRUE
-	beq		exit_idle
+	BEHAVIOR_PROLOGUE idle
 
-call_idle:
-	CORO_CONTEXT_INIT	idle		// Reset idle context
-	CORO_CALL	idle				// Always activates
+	DISPLAY_ROBOT_STATE behavior_idlestr
 
-exit_idle:
-	pop		{pc}
+	ldr		r0, =motor_control_struct_head
+	bl		config_motor_stop
+
+#if 1
+	// Use movement routine to setup actuator controller
+	mov		r0, #MOVE_STOP
+	bl		movement_selector				// Setup movement
+#else
+	// Configure each motor separately
+	ldr		r0, =motor_control_struct_left
+	bl		config_motor_stop
+	ldr		r0, =motor_control_struct_right
+	bl		config_motor_stop
+#endif
+	BEHAVIOR_EPILOGUE idle
+
+/** trigger_idle
+ *
+ *    Always triggered
+ *
+ **/
+trigger_idle:
+	mov		r0, #TRUE
+	mov		pc, lr
 
 /*****************************************************************************/
 /* Actuator Routines
@@ -1678,6 +1755,7 @@ done_exit_check:
 
 #endif
 
+#if 0
 /*****************************************************************************/
 
 /** input_controller
@@ -1698,6 +1776,7 @@ input_controller:
 
 	CORO_CONTEXT_INIT sensor_color			// reset color input gathering
 	CORO_CONTEXT_INIT sensor_touch			// reset touch input gathering
+
 
 input_coroutine_dispatcher:
 	mov		r4, #NUM_SENSORS				// Number of sensor inputs to process
@@ -1792,6 +1871,8 @@ actuator_controller:
 
 	pop		{pc}
 
+#endif
+
 /*****************************************************************************/
 
 /** main
@@ -1818,6 +1899,13 @@ robot_setup:
 	mov		r0, #ROBOT_IDLE
 	strb	r0, [r4]
 
+	// Initialize Coroutine Contexts
+	CORO_CONTEXT_INIT sensor_color			// reset color input gathering
+	CORO_CONTEXT_INIT sensor_touch			// reset touch input gathering
+	CORO_CONTEXT_INIT bhvr_escape			// Reset escape context
+	CORO_CONTEXT_INIT actuator_head			// Reset head actuator context
+	CORO_CONTEXT_INIT actuator_limbs		// Reset limbs actuator context
+
 	// Suppress all behaviors on first pass to reset behaviors
 	set_bhvr_suppress	TRUE
 
@@ -1825,16 +1913,33 @@ robot_setup:
 	record_systick loop_systick
 
 event_loop:
-
-	bl		input_controller				// Update sensor and keypress inputs
+/*****************************************************************************/
+	// Input Controller (Update sensor and keypress inputs)
+	CORO_CALL	sensor_color
+	CORO_CALL	sensor_touch
 
 	// Check if we need to quit
 	ldr		r0, [r4]
 	cmp		r0, #ROBOT_QUIT
 	beq		robot_cleanup					// Quit detected
 
-	bl		behavior_dispatcher				// Execute behaviors based on priority
-	bl		actuator_controller				// Configure actuator outputs
+/*****************************************************************************/
+	// Behavior Dispatcher
+	//   Execute behaviors based on priority as long as they are not suppressed
+	//   Else, reset the behavior
+	//
+	CALL_BEHAVIOR escape
+	CALL_BEHAVIOR followpath
+	CALL_BEHAVIOR lower_head
+	CALL_BEHAVIOR idle
+	set_bhvr_suppress	FALSE				// Clear bhvr_suppress flag
+
+/*****************************************************************************/
+	// Actuator Controller (Configure actuator outputs)
+	CORO_CALL	actuator_head
+	CORO_CALL	actuator_limbs
+
+/*****************************************************************************/
 
 event_sleep:
 	bl		update_systick_and_sleep		// Sleep for remainder of event loop
