@@ -21,7 +21,7 @@
 #define ROBOT_DEBUG_ROW		8						// Robot Debug Display Row on output screen
 #define DEBUG_INT_WIDTH     6						// Alignment width for integer value
 
-#define EVENTLOOP_TICKCOUNT 100 * TICKS_PER_MSEC	// 100 ms per event loop
+#define EVENTLOOP_TICKCOUNT (100 * TICKS_PER_MSEC)	// 100 ms per event loop
 
 #define L_MOTOR_PORT      OUTPUT_B
 #define L_MOTOR_EXT_PORT  EXT_PORT__NONE_
@@ -35,11 +35,15 @@
 #define TACHO_RUN_MODE      TACHO_RUN_FOREVER       // TACHO_RUN_TO_REL_POS, TACHO_RUN_FOREVER
 
 #define HEAD_MOTOR_TYPE     LEGO_EV3_M_MOTOR
-#define HEAD_MAX_SPEED      50
-#define HEAD_RAMPTIME_MS    10
+#define HEAD_MAX_SPEED      100
+#define HEAD_RAMPTIME_MS    1
 #define HEAD_STOP_MODE      TACHO_BRAKE
 #define HEAD_RUN_MODE       TACHO_RUN_FOREVER
 #define HEAD_STOPPED_SLACK  2						// Change in readings to indicate that head has stopped
+#define HEAD_MOVEMENT_INTERVAL (100 * TICKS_PER_MSEC)	// 100 ms
+
+#define COLOR_READ_INTERVAL (3 * TICKS_PER_MSEC)		// 3 ms
+
 
 	.extern	usleep
 

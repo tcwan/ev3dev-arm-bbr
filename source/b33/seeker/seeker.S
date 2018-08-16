@@ -54,7 +54,6 @@
     // Color Sensor Parameters
 	.equiv	NUM_COLOR_READINGS, 5
 	.equiv	SIZE_COLOR_READING, 4								// 32-bit values
-	.equiv	COLOR_READ_INTERVAL, 3 * TICKS_PER_MSEC				// 3 ms
 
 /*****************************************************************************/
 /* Enums
@@ -79,11 +78,22 @@
     ENUM_N		MOVE_RIGHT
 
     // Head Position Enums
-    ENUM_0		HEAD_UNKNOWN
-    ENUM_N		HEAD_DOWN
+    ENUM_0		HEADPOS_UNKNOWN
+    ENUM_N		HEADPOS_DOWN
+    ENUM_N		HEADPOS_UP
+
+
+    // Head Actuator State Enums
+    ENUM_0		HEAD_IDLE
     ENUM_N		HEAD_MOVING_DOWN
     ENUM_N		HEAD_MOVING_UP
-    ENUM_N		HEAD_UP
+    ENUM_N		HEAD_MOVING_DONE
+
+    // Limb Actuator State Enums
+    ENUM_0		LIMB_IDLE
+    ENUM_N		LIMB_MOVING
+    ENUM_N		LIMB_WAITSYNC
+    ENUM_N		LIMB_DONE
 
     .data
     .align
@@ -199,17 +209,40 @@ mcs_numsteps_offset: .word		motor_numsteps_offset
 /* Program Specific Variables (byte aligned)
 /*****************************************************************************/
 	.align
+/*****************************************************************************/
+/* Input related
+/*****************************************************************************/
+
 /* EV3 Keypress input variable */
 keypress:		.byte	EV3_KEY__NONE_
 
 /* Sting Activated state variable */
 sting_activated: .byte	FALSE
 
-/* Head Movement state variable */
-head_state:		.byte	HEAD_UNKNOWN
+/*****************************************************************************/
+/* Behavior related
+/*****************************************************************************/
 
 /* Escape state variable */
 escape_state:	.byte	ESCAPE_IDLE
+
+/* Head Position state variable */
+headpos_state:	.byte	HEADPOS_UNKNOWN
+
+/*****************************************************************************/
+/* Actuator related
+/*****************************************************************************/
+
+/* Head Movement state variable */
+head_state:		.byte	HEAD_IDLE
+
+/* Limb Movement state variable */
+limb_state_left:  .byte	LIMB_IDLE
+limb_state_right: .byte	LIMB_IDLE
+
+/*****************************************************************************/
+/* System related
+/*****************************************************************************/
 
 /* Robot State variable */
 robot_state:	.byte	ROBOT_IDLE
@@ -387,13 +420,13 @@ update_target_\side:
     mov     r2, r2, asr #ROTATION_SCALING   // setup scaled countperrot value
     ldr     r0, =seqno_\side
     ldrb    r0, [r0]                        // Setup motor sequence number
-    bl      set_targetpos_and_start_tacho   // Set new target and start motor
+    bl      set_targetpos_and_start_limb_tacho   // Set new target and start motor
 
     CORO_WAIT   has_tacho_reached_target_\side
 
     ldr     r0, =seqno_\side
     ldrb    r0, [r0]                        // Setup motor sequence number
-    bl      stop_tacho                      // Stop motor
+    bl      stop_limb_tacho                      // Stop motor
 
     // Rendezvous Point
     CORO_WAIT   has_no_running_motors       // Don't let one motor get ahead of the other(s)
@@ -434,17 +467,36 @@ motor_end_\side:
     .text
     .align
 
-#ifdef USE_USLEEP
+/** has_timer_expired
+ *
+ *    Timer Expiry Check
+ *
+ *    Note: We need to deal with U32 rollover issues using signed arithmetic
+ *          timer expiry and current systick are both U32
+ *          Sleep if (S32)( current systick - timer expiry ) < 0
+ *
+ * Parameters:
+ *   r0: timer expiry (in systick counts) [U32]
+ * Returns:
+ *   r0: TRUE if reading interval exceeded, else FALSE
+ *
+ **/
+has_timer_expired:
+    push    {r4, lr}
+    mov		r4, r0							// Keep timer expiry in r4
+	bl		tick_systick					// returns current systick in r0
+	cmp		r0, r4							// Compare current sytick to timer expiry time
+	movlt	r0, #FALSE
+	movge	r0, #TRUE
+	pop		{r4, pc}
+
+#ifndef USE_USLEEP
 /*****************************************************************************/
 /* Utiilty Functions to support sensor_xxxx Coroutines
 /*****************************************************************************/
 /** has_color_interval_elapsed
  *
  *    Last Color Sensor Reading Interval Check
- *
- *    Note: We need to deal with U32 rollover issues using signed arithmetic
- *          color_last_systick and current systick are both U32
- *          Sleep if (S32)( current systick - next color_last_systick ) < 0
  *
  * Parameters:
  *   None
@@ -454,15 +506,11 @@ motor_end_\side:
  **/
 has_color_interval_elapsed:
     push    {lr}
-	bl		tick_systick					// returns current systick in r0
-
 	ldr		r1, =color_last_systick
 	ldr		r2, =COLOR_READ_INTERVAL
 	ldr		r3, [r1]						// Retrieve Color Sensor last reading systick
-	add		r3, r3, r2						// New Color Sensor read time
-	cmp		r0, r3							// Compare current sytick to target color sensor read time
-	movlt	r0, #FALSE
-	movge	r0, #TRUE
+	add		r0, r3, r2						// New Color Sensor read time
+	bl		has_timer_expired
 	pop		{pc}
 
 #endif
@@ -505,7 +553,7 @@ advance_tacho_target_position:
     str     r2, [r0]                        // store new target position
     mov     pc, lr
 
-/** set_targetpos_and_start_tacho
+/** set_targetpos_and_start_limb_tacho
  *
  * Parameters:
  *    r0: limb motor sequence number
@@ -515,7 +563,7 @@ advance_tacho_target_position:
  * Returns:
  *    None
  */
-set_targetpos_and_start_tacho:
+set_targetpos_and_start_limb_tacho:
     push    {r4, r5, lr}
     mov     r4, r0                          // keep motor sequence number
     mov		r5, r3							// keep signed speed
@@ -544,14 +592,14 @@ set_targetpos_and_start_tacho:
     str     r0, [r1]
     pop     {r4, r5, pc}
 
-/** stop_tacho
+/** stop_limb_tacho
  *
  * Parameters:
  *    r0: limb motor sequence number
  * Returns:
  *    None
  */
-stop_tacho:
+stop_limb_tacho:
     push    {lr}
     mov     r1, #TACHO_STOP                 // stop motor
     bl      set_tacho_command_inx
@@ -561,7 +609,7 @@ stop_tacho:
     str     r0, [r1]                        // decrement num_running_motors
     pop     {pc}
 
-/** start_head
+/** start_head_tacho
  *
  * Parameters:
  *    r0: forward (boolean)
@@ -569,7 +617,7 @@ stop_tacho:
  * Returns:
  *    None
  */
-start_head:
+start_head_tacho:
     push    {r4, lr}
     ldr		r4, =seqno_head
     ldrb	r4, [r4]
@@ -587,14 +635,14 @@ start_head:
     bl      set_tacho_command_inx
     pop     {r4, pc}
 
-/** stop_head
+/** stop_head_tacho
  *
  * Parameters:
  *    None
  * Returns:
  *    None
  */
-stop_head:
+stop_head_tacho:
     push    {lr}
     ldr		r0, =seqno_head
     ldrb	r0, [r0]
@@ -807,21 +855,84 @@ exit_movement_selector:
  * Note: Since we're using push/pop in the Coroutine, there should not be any CORO_* macro calls
  *       between the push and the pop instructions
  *
- *	// Ignore numsteps parameter
+ *  If (head_state == HEAD_DONE)
+ *      reset state to HEAD_IDLE
  *
- *	If (head.enabled != prev_head.enabled)
- *		configure motor for stop or start
- *	Else
- *		if (head.enabled) and
- *         ((head.speed != head_prev.speed) || head.forward != head_prev.forward))
- *		update motor control parameters
+ *  If (head_state == HEAD_IDLE)
+ *	    // Ignore numsteps parameter
+ *      Record Head Motor Position
  *
+ *	    If (head.enabled != prev_head.enabled)
+ *		    configure motor for stop or start
+ *	    Else
+ *		    If (head.enabled) and
+ *            ((head.speed != head_prev.speed) || head.forward != head_prev.forward))
+ *		        update motor control parameters
+ *          Endif
+ *      Endif
+ *
+ *      Update head_state
+ *
+ *  Else (head_state == HEAD_MOVING*)
+ *      If timer expired, check if head position has stopped
+ *          If head position has stopped, head_state = HEAD_DONE, update control structs
+ *          Else update timer expiry and new head motor position
+ *  Endif
  */
+	.align
+	CORO_LOCAL	timer_expiry_head, word, 0
 
  	CORO_CONTEXT actuator_head
  	CORO_START	actuator_head
 actuator_head_loop:
  	push	{r4, r5, r6, r7, r8}
+
+check_actuator_head_state:
+	ldr		r4, =head_state
+	ldrb	r0, [r4]
+	cmp		r0, #HEAD_MOVING_DONE
+	bne		check_head_idle
+
+clear_head_state:
+	mov		r0, #HEAD_IDLE
+	strb	r0, [r4]						// Change state back to HEAD_IDLE
+	// Fall through
+
+check_head_idle:
+	cmp		r0, #HEAD_IDLE
+	beq		check_head_motor_statechange
+
+check_head_moving:
+	cmp		r0, #HEAD_MOVING_UP
+	beq		head_moving_update
+	cmp		r0, #HEAD_MOVING_DOWN
+	beq		head_moving_update
+	b		clear_head_state				// Unknown state, clear to HEAD_IDLE
+
+head_moving_update:
+	ldr		r5, =timer_expiry_head			// Copy to r5 for later use (if needed)
+	mov		r0, r5
+	bl		has_timer_expired
+	cmp		r0, #TRUE
+	bne		actuator_head_done				// Still not expired, skip
+
+head_timer_has_expired:
+	bl		has_head_stopped
+	cmp		r0, #TRUE
+	beq		head_motor_stop					// Head stopped
+
+check_head_still_moving:
+	ldr		r0, [r5]						// Get current timer
+	ldr		r1, =HEAD_MOVEMENT_INTERVAL
+	add		r0, r1, r0
+	str		r0, [r5]						// Update timer expiry
+	b		actuator_head_done				// Wait for next activation to check again
+
+check_head_motor_statechange:
+	// Record staring position
+    ldr     r0, =head_prevpos
+    bl      record_head_position            // Record starting position for head motor
+
  	ldr		r7, =motor_control_struct_head
  	ldr		r8, =motor_control_struct_prev_head
 
@@ -840,7 +951,6 @@ actuator_head_loop:
  	strb	r2, [r8, #motor_numsteps_offset]	// Clear numsteps
  	strb	r3, [r8, #motor_forward_offset]
 
- check_head_motor_statechange:
  	cmp		r0, r4
  	bne		head_motor_statechange
 
@@ -862,13 +972,33 @@ head_motor_statechange:
  	cmp		r0, #TRUE			// Head actuator enabled?
  	bne		head_motor_stop
 
- head_motor_start:
+head_motor_start:
+	// Check movement direction
+	cmp		r3, #TRUE			// forward is DOWN, reverse is UP
+	moveq	r5, #HEAD_MOVING_DOWN
+	movne	r5, #HEAD_MOVING_UP
+ 	ldr		r4, =head_state
+	strb	r5, [r4]
+
+	// enable head motor
  	mov		r0, r3				// r0: forward, r1: speed
- 	bl		start_head
+ 	bl		start_head_tacho
 	b		actuator_head_done
 
 head_motor_stop:
-	bl		stop_head
+	ldr		r4, =head_state
+	mov		r0, #HEAD_MOVING_DONE
+	strb	r0, [r4]						// Update state to HEAD_DONE
+
+	// The head actuator automatically stops the motor
+	bl		stop_head_tacho					// Stop head motor
+
+	ldr		r0, =motor_control_struct_prev_head
+	bl		config_motor_stop				// Indicate motor has stopped in control struct
+	ldr		r0, =motor_control_struct_head
+	bl		config_motor_stop				// Indicate motor has stopped in control struct
+
+	// Let Behaviors pick up HEAD_MOVING_DONE state update in next event loop
 
 actuator_head_done:
  	pop	{r4, r5, r6, r7, r8}
@@ -1014,44 +1144,38 @@ escape_start:
 
 	DISPLAY_ROBOT_STATE behavior_escapestr
 
-check_head_state:
-	ldr		r3, =head_state					// Setup state variable pointer
-	ldrb	r0, [r3]						// Get current Head State
-	cmp		r0, #HEAD_UP					// Are we in desired state?
-	beq		check_escape_state				// yes, so skip checking
+	ldr		r2, =head_state					// Setup head actuator state pointer
+	ldr		r3, =headpos_state				// Setup head position state pointer
 
-check_head_moving:
-	cmp		r0, #HEAD_MOVING_UP				// Are we currently moving the head?
-	beq		check_head_done					// yes, so skip update
+check_headpos_state:
+	ldrb	r0, [r3]						// Get current Head Position State
+#if 1
+	cmp		r0, #HEADPOS_UP					// Are we in desired state?
+	beq		check_escape_state				// yes, so skip checking
+#else
+	mov		r0, #HEADPOS_UNKNOWN
+	strb	r0, [r3]
+#endif
+check_head_done:
+	ldrb	r0, [r2]						// Get current head movement state
+	cmp		r0, #HEAD_MOVING_DONE			// Are we currently moving the head?
+	beq		update_headpos_state
+
+check_head_moving_up:
+	cmp		r0, #HEAD_MOVING_UP				// Have we started moving the head up?
+	beq		check_escape_state				// yes, so skip update
 
 config_head_movement:
-	mov		r0, #HEAD_MOVING_UP
-	strb	r0, [r3]						// Update Head State variable
-
-	// Record staring position
-    ldr     r0, =head_prevpos
-    bl      record_head_position            // Record starting position for head motor
-
 	// Setup Head Controller actions
 	ldr		r0, =motor_control_struct_head
 	mov		r1, #HEAD_MAX_SPEED
 	mov		r2, #0							// Num steps is not used by Head Controller
-	bl		config_motor_forward			// Start Head Motor movement
-	b		check_escape_state				// Take care of escape movement
+	bl		config_motor_reverse			// Start Head Motor movement
+	b		check_escape_state
 
-check_head_done:
-	bl		has_head_stopped
-	cmp		r0, #TRUE
-	bne		check_escape_state				// Head still moving
-
-update_head_state:
-	ldr		r3, =head_state					// Setup state variable pointer
-	mov		r0, #HEAD_UP					// Head done moving
-	strb	r0, [r3]						// Update Head State variable
-
-	// Stop Motor if we have not done so yet
-	ldr		r0, =motor_control_struct_head
-	bl		config_motor_stop				// Stop Head Motor movement
+update_headpos_state:
+	mov		r0, #HEADPOS_UP
+	strb	r0, [r3]						// Flag Head Movement Done
 
 check_escape_state:
 	ldr		r3, =escape_state				// Setup state variable pointer
@@ -1063,7 +1187,7 @@ check_escape_escaping:
 	cmp		r0, #ESCAPE_ESCAPING			// Are we still escaping?
 	beq		check_escape_done
 
-coonfig_escape:
+config_escape:
 	mov		r0, #ESCAPE_ESCAPING
 	strb	r0, [r3]						// Update Escape State variable
 
@@ -1087,9 +1211,9 @@ update_escape_state:
 	strb	r0, [r3]						// Update Escape State variable
 
 check_behavior_escape_done:
-	ldr		r3, =head_state					// Setup state variable pointer
+	ldr		r3, =headpos_state					// Setup state variable pointer
 	ldrb	r0, [r3]						// Get current Head State
-	cmp		r0, #HEAD_UP					// Are we in desired state?
+	cmp		r0, #HEADPOS_UP					// Are we in desired state?
 	bne		exit_behavior_escape			// No, so wait for next iteration of coroutine to check again
 
 	ldr		r3, =escape_state				// Setup state variable pointer
@@ -1610,6 +1734,11 @@ init_robot:
     bl      setup_motors
     bl		getpid							// Retrieve the PID of the process, as srandom seed
 	bl		srandom							// Initialize random number generator
+
+	// Configure Head Position state
+	ldr		r1, =headpos_state				// Setup head position state pointer
+	mov		r0, #HEADPOS_UNKNOWN
+	strb	r0, [r1]						// Update current Head Position State
 
 	// Setup Robot State to ROBOT_IDLE
 	mov		r0, #ROBOT_IDLE
