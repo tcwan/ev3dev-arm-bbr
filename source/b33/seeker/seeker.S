@@ -1278,15 +1278,53 @@ trigger_followpath:
 
 	DISPLAY_ROBOT_STATE	behavior_lowerheadstr
 
+	ldr		r2, =head_state					// Setup head actuator state pointer
+	ldr		r3, =headpos_state				// Setup head position state pointer
+
+check_lower_head_done:
+	ldrb	r0, [r2]						// Get current head movement state
+	cmp		r0, #HEAD_MOVING_DONE			// Are we currently moving the head?
+	beq		update_lower_headpos_state
+
+check_head_moving_down:
+	cmp		r0, #HEAD_MOVING_DOWN			// Have we started moving the head down?
+	beq		exit_behavior_lower_head		// yes, so skip update
+
+config_lower_head_movement:
+	// Setup Head Controller actions
+	ldr		r0, =motor_control_struct_head
+	mov		r1, #HEAD_MAX_SPEED
+	mov		r2, #0							// Num steps is not used by Head Controller
+	bl		config_motor_forward			// Start Head Motor movement
+	b		exit_behavior_lower_head
+
+update_lower_headpos_state:
+	mov		r0, #HEADPOS_DOWN
+	strb	r0, [r3]						// Flag Head Movement Done
+
+exit_behavior_lower_head:
 	BEHAVIOR_EPILOGUE lower_head
 
 /** trigger_lower_head
  *
- *    XXXXX
+ *    Enable Lower Head if Head Position is Up or Unknown
  *
  **/
 trigger_lower_head:
+	// Check Head Position state
+	ldr		r1, =headpos_state				// Setup head position state pointer
+	ldrb	r0, [r1]
+	cmp		r0, #HEADPOS_UNKNOWN
+	beq		enable_lower_head
+	cmp		r0, #HEADPOS_UP
+	beq		enable_lower_head
+
+disable_lower_head:
 	mov		r0, #FALSE
+	mov		pc, lr
+
+enable_lower_head:
+	mov	r0, #TRUE
 	mov		pc, lr
 
 /*****************************************************************************/
