@@ -82,7 +82,6 @@
     ENUM_N		HEADPOS_DOWN
     ENUM_N		HEADPOS_UP
 
-
     // Head Actuator State Enums
     ENUM_0		HEAD_IDLE
     ENUM_N		HEAD_MOVING_DOWN
@@ -178,8 +177,10 @@ color_intensity_array: .space	(NUM_COLOR_READINGS * SIZE_COLOR_READING), 0x0		//
 head_prevpos:	.word	0
 head_currpos:	.word	0
 
+#if 0
 /* Limb Motor Coroutine synchronization variable */
 num_running_motors: .word    0
+#endif
 
 /* Motor Rotation related parameter */
 countperrot:    .word   0                   // Tacho count per rotation (360 deg)
@@ -240,6 +241,10 @@ head_state:		.byte	HEAD_IDLE
 limb_state_left:  .byte	LIMB_IDLE
 limb_state_right: .byte	LIMB_IDLE
 
+/* Limb Motor Movement Parameters */
+step_count:		.byte	0					// Number of steps
+rotation_count:	.byte	0					// Rotations per step
+
 /*****************************************************************************/
 /* System related
 /*****************************************************************************/
@@ -298,8 +303,8 @@ seqno_color:    .byte   0
  *    num_running_motors: for rendezvous point checking
  *    has_no_running_motors(): Rendezvous Point check function
  *    seqno_xxxx: Motor Sequence Number
- *    start_tacho(): function to start motor and increment num_running_motors
- *    stop_tacho(): function to stop motor and decrement num_running_motors
+ *    start_limb_tacho(): function to start motor and increment num_running_motors
+ *    stop_limb_tacho(): function to stop motor and decrement num_running_motors
  *
  **/
     .macro      DEFINE_COROUTINE_MOTOR    side
@@ -490,31 +495,7 @@ has_timer_expired:
 	movge	r0, #TRUE
 	pop		{r4, pc}
 
-#ifndef USE_USLEEP
-/*****************************************************************************/
-/* Utiilty Functions to support sensor_xxxx Coroutines
-/*****************************************************************************/
-/** has_color_interval_elapsed
- *
- *    Last Color Sensor Reading Interval Check
- *
- * Parameters:
- *   None
- * Returns:
- *   r0: TRUE if reading interval exceeded, else FALSE
- *
- **/
-has_color_interval_elapsed:
-    push    {lr}
-	ldr		r1, =color_last_systick
-	ldr		r2, =COLOR_READ_INTERVAL
-	ldr		r3, [r1]						// Retrieve Color Sensor last reading systick
-	add		r0, r3, r2						// New Color Sensor read time
-	bl		has_timer_expired
-	pop		{pc}
-
-#endif
-
+#if 0
 /*****************************************************************************/
 /* Utiilty Functions to support motor_xxxx Coroutine Macros
 /*****************************************************************************/
@@ -537,6 +518,7 @@ has_no_running_motors:
     movne   r0, #FALSE
     mov     pc, lr
 
+#endif
 
 /** advance_tacho_target_position
  *
@@ -584,12 +566,13 @@ set_targetpos_and_start_limb_tacho:
     mov     r0, r4                          // retrieve motor sequence number
     mov     r1, #TACHO_RUN_MODE             // configure run mode
     bl      set_tacho_command_inx
-
+#if 0
     // increment num_running_motors
     ldr     r1, =num_running_motors
     ldr     r0, [r1]
     add     r0, r0, #1
     str     r0, [r1]
+#endif
     pop     {r4, r5, pc}
 
 /** stop_limb_tacho
@@ -603,10 +586,12 @@ stop_limb_tacho:
     push    {lr}
     mov     r1, #TACHO_STOP                 // stop motor
     bl      set_tacho_command_inx
+#if 0
     ldr     r1, =num_running_motors
     ldr     r0, [r1]
     sub     r0, r0, #1
     str     r0, [r1]                        // decrement num_running_motors
+#endif
     pop     {pc}
 
 /** start_head_tacho
@@ -840,12 +825,13 @@ move_right:
 
 exit_movement_selector:
 	pop		{pc}
-
+#if 0
 /*****************************************************************************/
 /* Coroutine Instantiation
 /*****************************************************************************/
     DEFINE_COROUTINE_MOTOR left
     DEFINE_COROUTINE_MOTOR right
+#endif
 
 /*****************************************************************************/
 /** actuator_head
@@ -910,8 +896,8 @@ check_head_moving:
 	b		clear_head_state				// Unknown state, clear to HEAD_IDLE
 
 head_moving_update:
-	ldr		r5, =timer_expiry_head			// Copy to r5 for later use (if needed)
-	mov		r0, r5
+	ldr		r5, =timer_expiry_head			// Setup pointer to timer expiry
+	ldr		r0, [r5]
 	bl		has_timer_expired
 	cmp		r0, #TRUE
 	bne		actuator_head_done				// Still not expired, skip
@@ -920,13 +906,7 @@ head_timer_has_expired:
 	bl		has_head_stopped
 	cmp		r0, #TRUE
 	beq		head_motor_stop					// Head stopped
-
-check_head_still_moving:
-	ldr		r0, [r5]						// Get current timer
-	ldr		r1, =HEAD_MOVEMENT_INTERVAL
-	add		r0, r1, r0
-	str		r0, [r5]						// Update timer expiry
-	b		actuator_head_done				// Wait for next activation to check again
+	b		update_head_timer_expiry
 
 check_head_motor_statechange:
 	// Record staring position
@@ -983,7 +963,16 @@ head_motor_start:
 	// enable head motor
  	mov		r0, r3				// r0: forward, r1: speed
  	bl		start_head_tacho
-	b		actuator_head_done
+
+	record_systick timer_expiry_head		// Setup initial value for timer expiry
+
+update_head_timer_expiry:
+	ldr		r5, =timer_expiry_head			// Setup pointer to timer expiry
+	ldr		r0, [r5]						// Get current timer
+	ldr		r1, =HEAD_MOVEMENT_INTERVAL
+	add		r0, r1, r0
+	str		r0, [r5]						// Update timer expiry
+	b		actuator_head_done				// Wait for next activation to check again
 
 head_motor_stop:
 	ldr		r4, =head_state
@@ -1062,7 +1051,11 @@ wait_next_reading:
 #ifdef USE_USLEEP
 	wait_3ms
 #else
- 	bl		has_color_interval_elapsed
+	ldr		r1, =color_last_systick
+	ldr		r2, =COLOR_READ_INTERVAL
+	ldr		r3, [r1]						// Retrieve Color Sensor last reading systick
+	add		r0, r3, r2						// New Color Sensor read time
+	bl		has_timer_expired
  	cmp		r0, #TRUE
  	bne		wait_next_reading
 #endif
@@ -1258,12 +1251,35 @@ trigger_escape:
 
 /** trigger_followpath
  *
- *    XXXXX
+ *    Activated when Sting is inactive and Head Position is Down
  *
  **/
 trigger_followpath:
+#if 0									// Not Activated yet
+
+	ldr		r1, =sting_activated
+	ldrb	r0, [r1]
+	cmp		r0, #FALSE
+	bne		disable_followpath
+
+check_followpath_head_position:
+	// Check Head Position state
+	ldr		r1, =headpos_state				// Setup head position state pointer
+	ldrb	r0, [r1]
+	cmp		r0, #HEADPOS_DOWN
+	beq		enable_followpath
+
+disable_followpath:
 	mov		r0, #FALSE
 	mov		pc, lr
+
+enable_followpath:
+	mov		r0, #TRUE
+	mov		pc, lr
+#else
+	mov		r0, #FALSE
+	mov		pc, lr
+#endif
 
 /*****************************************************************************/
 /**
@@ -1324,7 +1340,7 @@ disable_lower_head:
 	mov		pc, lr
 
 enable_lower_head:
-	mov	r0, #TRUE
+	mov		r0, #TRUE
 	mov		pc, lr
 
 /*****************************************************************************/
