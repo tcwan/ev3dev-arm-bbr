@@ -92,6 +92,7 @@
     ENUM_0		LIMB_IDLE
     ENUM_N		LIMB_MOVING
     ENUM_N		LIMB_WAITSYNC
+    ENUM_N		LIMB_DONESYNC				// Needed to support WAIT-YIELD semantics
     ENUM_N		LIMB_DONE
 
     .data
@@ -177,7 +178,7 @@ color_intensity_array: .space	(NUM_COLOR_READINGS * SIZE_COLOR_READING), 0x0		//
 head_prevpos:	.word	0
 head_currpos:	.word	0
 
-#if 0
+#if 1
 /* Limb Motor Coroutine synchronization variable */
 num_running_motors: .word    0
 #endif
@@ -241,9 +242,14 @@ head_state:		.byte	HEAD_IDLE
 limb_state_left:  .byte	LIMB_IDLE
 limb_state_right: .byte	LIMB_IDLE
 
-/* Limb Motor Movement Parameters */
-step_count:		.byte	0					// Number of steps
-rotation_count:	.byte	0					// Rotations per step
+/* Limb Actuator Movement Parameters */
+limb_actuator_struct:						// Little Endian Packing (LSB to MSB)
+step_count_left:  .byte	0					// Number of steps for left limb
+arc_count_left:	  .byte	0					// Arcs per step for left limb
+step_count_right: .byte	0					// Number of steps for right limb
+arc_count_right:  .byte	0					// Arcs per step for right limb
+
+	.equ	limb_actuator_struct_size, . - limb_actuator_struct
 
 /*****************************************************************************/
 /* System related
@@ -566,7 +572,7 @@ set_targetpos_and_start_limb_tacho:
     mov     r0, r4                          // retrieve motor sequence number
     mov     r1, #TACHO_RUN_MODE             // configure run mode
     bl      set_tacho_command_inx
-#if 0
+#if 1
     // increment num_running_motors
     ldr     r1, =num_running_motors
     ldr     r0, [r1]
@@ -586,13 +592,17 @@ stop_limb_tacho:
     push    {lr}
     mov     r1, #TACHO_STOP                 // stop motor
     bl      set_tacho_command_inx
-#if 0
+#if 1
     ldr     r1, =num_running_motors
     ldr     r0, [r1]
     sub     r0, r0, #1
     str     r0, [r1]                        // decrement num_running_motors
 #endif
     pop     {pc}
+
+/*****************************************************************************/
+/* Utiilty Functions to support Head Actuator Movement
+/*****************************************************************************/
 
 /** start_head_tacho
  *
@@ -635,9 +645,6 @@ stop_head_tacho:
     bl      set_tacho_command_inx
     pop     {pc}
 
-/*****************************************************************************/
-/* Utiilty Functions to support Head Actuator Movement
-/*****************************************************************************/
 /** record_head_position
  *
  * Parameters:
@@ -686,6 +693,10 @@ head_stopped:
 exit_has_head_stopped:
     pop     {pc}
 
+/*****************************************************************************/
+/* Utiilty Functions to setup Actuator Controller for Behavior Coroutines
+/*****************************************************************************/
+
 /** is_escape_movement_done
  *
  * Parameters:
@@ -694,13 +705,41 @@ exit_has_head_stopped:
  *   r0: TRUE if stopped, else FALSE
   */
 is_escape_movement_done:
+
+#if 1
 	// FIXME
 	mov		r0, #TRUE
 	mov		pc, lr
+#else
+/* This is too low level for behaviors to check
+	ldr		r1, =limb_actuator_struct
+	ldr		r0, [r1]						// contains byte values for num steps and num arcs
+	cmp		r0, #0							// Check if it is all done
+	moveq	r0, #TRUE						// No steps or arcs left, so we're done
+	mov		pc, lr
+*/
 
-/*****************************************************************************/
-/* Utiilty Functions to setup Actuator Controller for Behavior Coroutines
-/*****************************************************************************/
+	ldr		r2, =limb_state_left
+	ldr		r3, =limb_state_right
+	ldrb	r0, [r2]						// Get Left Limb State
+	ldrb	r1, [r3]						// Get Right Limb State
+
+check_limb_states:
+	cmp		r0, #LIMB_IDLE
+	bne		flag_escape_not_done
+	cmp		r1, #LIMB_IDLE
+	beq		flag_escape_done
+
+flag_escape_not_done:
+	mov		r0, #FALSE
+	mov		pc, lr
+
+flag_escape_done:
+	mov		r0, #TRUE
+	mov		pc, lr
+#endif
+
+
 /** config_motor_stop
  *
  * Parameters:
@@ -772,7 +811,7 @@ config_motor_reverse:
 movement_selector:
 	push	{lr}
 
-enum_check:
+movement_enum_check:
 	cmp		r0, #MOVE_FORWARD
 	beq		move_forward
 	cmp		r0, #MOVE_REVERSE
@@ -852,17 +891,19 @@ exit_movement_selector:
  *		    configure motor for stop or start
  *	    Else
  *		    If (head.enabled) and
- *            ((head.speed != head_prev.speed) || head.forward != head_prev.forward))
+ *            ((head.speed != head_prev.speed) || (head.forward != head_prev.forward))
  *		        update motor control parameters
  *          Endif
  *      Endif
  *
  *      Update head_state
  *
- *  Else (head_state == HEAD_MOVING*)
+ *  Else if (head_state == HEAD_MOVING*)
  *      If timer expired, check if head position has stopped
  *          If head position has stopped, head_state = HEAD_DONE, update control structs
  *          Else update timer expiry and new head motor position
+ *  Else
+ *		Reset head_state = HEAD_IDLE
  *  Endif
  */
 	.align
@@ -996,14 +1037,110 @@ actuator_head_done:
  	CORO_END
 
 /*****************************************************************************/
+/*
+ * Coroutine for Limb Control (symmetrical for both limbs)
+ *
+ * Note: Since we're using push/pop in the Coroutine, there should not be any CORO_* macro calls
+ *       between the push and the pop instructions
+ *
+ *  If (limb_state == LIMB_DONE)
+ *      reset state to LIMB_IDLE
+ *
+ *  If ((limb_state == LIMB_IDLE) or (limb_state == LIMB_DONESYNC))
+ *      Record Limb Motor Position
+ *
+ *	    If (limb.enabled != limb_prev.enabled)
+ *			if start, start limb motor, increment num_running_motors, set limb_state = LIMB_MOVING
+ *			if stop, set limb_state = LIMB_DONE 	// Check: The limb motor should be stopped when we get here
+ *	    Else if (limb.enabled) and
+ *            ((limb.speed != limb_prev.speed) || (limb.forward != limb_prev.forward)
+ *				|| (limb.numsteps != limb_prev.numsteps))
+ *		    update motor control parameters, set limb_state = LIMB_MOVING
+ *      Else if (limb_state == LIMB_DONESYNC)
+ *			start limb motor, increment num_running_motors, set limb_state = LIMB_MOVING
+ *      Endif
+ *
+ *      Update limb_state
+ *
+ *  Else if (limb_state == LIMB_MOVING)
+ *      If limb position reached
+ *			Stop Limb Motor, decrement num_running_motors
+ *			Adjust (Decrement) [num_steps | arc_count]
+ *			if ([num_steps | arc_count] == 0)
+ *				limb_state = LIMB_DONE, update control structs
+ *			Else
+ *				limb_state = LIMB_WAITSYNC
+ *			Endif
+ *		Endif
+ *
+ *  Else if (limb_state == LIMB_WAITSYNC)
+ *			if (num_running_motors == 0), then limb_state = LIMB_DONESYNC
+ *  Else
+ *		Reset limb_state = LIMB_IDLE
+ *  Endif
+ *
+ */
 /** actuator_limb_left
  *
  * Coroutine for Limb Left Motor Control
  *
  */
+
+ 	.align
+ 	CORO_LOCAL	timer_expiry_limb_left, word, 0
+
  	CORO_CONTEXT actuator_limb_left
  	CORO_START	actuator_limb_left
- 	NOP
+
+actuator_limb_loop_left:
+ 	push	{r4, r5, r6, r7, r8}
+
+check_actuator_limb_state_left:
+	ldr		r4, =limb_state_left
+	ldrb	r0, [r4]
+	cmp		r0, #LIMB_DONE
+	bne		check_limb_idle_left
+
+clear_limb_state_left:
+	mov		r0, #LIMB_IDLE
+	strb	r0, [r4]						// Change state back to LIMB_IDLE
+	// Fall through
+
+check_limb_idle_left:
+	cmp		r0, #LIMB_IDLE
+	beq		check_limb_motor_statechange_left
+	cmp		r0, #LIMB_DONESYNC
+	beq		check_limb_motor_statechange_left
+
+check_limb_moving_left:
+	cmp		r0, #LIMB_MOVING
+	beq		limb_moving_update_left
+
+check_limb_waitsync_left:
+	cmp		r0, #LIMB_WAITSYNC
+	bl		has_no_running_motors
+	cmp		r0, #TRUE
+	bne		clear_limb_state_left			// Unknown state, clear to LIMB_IDLE
+
+update_limb_state_waitsync_left:
+	mov		r0, #LIMB_DONESYNC
+	strb	r0, [r4]
+	b		actuator_limb_done_left			// Wait till next event loop (WAIT-YIELD semantics)
+
+limb_moving_update_left:
+	// FIXME
+	ldr		r5, =timer_expiry_head			// Setup pointer to timer expiry
+	ldr		r0, [r5]
+	bl		has_timer_expired
+	cmp		r0, #TRUE
+	bne		actuator_head_done				// Still not expired, skip
+
+check_limb_motor_statechange_left:
+
+actuator_limb_done_left:
+ 	pop	{r4, r5, r6, r7, r8}
+ 	CORO_YIELD
+ 	b		actuator_limb_left_loop
  	CORO_END
 
 /** actuator_limb_right
@@ -1011,6 +1148,9 @@ actuator_head_done:
  * Coroutine for Limb Right Motor Control
  *
  */
+ 	.align
+ 	CORO_LOCAL	timer_expiry_limb_right, word, 0
+
  	CORO_CONTEXT actuator_limb_right
  	CORO_START	actuator_limb_right
  	NOP
