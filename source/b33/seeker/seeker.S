@@ -501,10 +501,50 @@ has_timer_expired:
 	movge	r0, #TRUE
 	pop		{r4, pc}
 
-#if 1
 /*****************************************************************************/
 /* Utiilty Functions to support motor_xxxx Coroutine Macros
 /*****************************************************************************/
+
+/** has_limb_reached_targetpos
+ *
+ *   Has Tacho Reached Target Position?
+ *   Check function for Coroutine motor_xxxx
+ *
+ * Parameters:
+ *    r0: pointer to tacho target position
+ * Returns:
+ *   r0: TRUE if target position reached, FALSE otherwise
+ *
+ **/
+has_limb_reached_targetpos:
+	//FIXME
+    push    {r4, lr}
+    ldr     r0, =seqno_\side
+    ldrb    r0, [r0]                        // Retrieve motor sequence number
+    ldr     r4, =tacho_currpos_\side
+    mov     r1, r4                          // Setup parameter
+    bl      get_tacho_position              // Record current position for motor_\side
+
+    ldr     r0, [r4]                        // Retrieve current position
+    ldr     r1, =tacho_targetpos_\side
+    ldr     r1, [r1]                        // Target Position for motor_\side
+
+    ldr		r2, =tacho_forward_\side		// Retrieve forward direction flag (boolean)
+    ldrb	r2, [r2]
+    cmp		r2, #FALSE
+    beq		check_reverse_\side
+
+check_forward_\side:
+    cmp     r0, r1                          // (currposition - targetposition) < 0?
+    movge   r0, #TRUE
+    movlt   r0, #FALSE
+    pop     {r4, pc}
+
+check_reverse_\side:
+    cmp     r0, r1                          // (currposition - targetposition) > 0?
+    movle   r0, #TRUE
+    movgt   r0, #FALSE
+    pop     {r4, pc}
 
 /** has_no_running_motors
  *
@@ -523,8 +563,6 @@ has_no_running_motors:
     moveq   r0, #TRUE
     movne   r0, #FALSE
     mov     pc, lr
-
-#endif
 
 /** advance_tacho_target_position
  *
@@ -1067,9 +1105,6 @@ actuator_head_done:
  *
  */
 
- 	.align
- 	CORO_LOCAL	timer_expiry_limb_left, word, 0
-
  	CORO_CONTEXT actuator_limb_left
  	CORO_START	actuator_limb_left
 
@@ -1110,6 +1145,7 @@ update_limb_state_waitsync_left:
 
 limb_moving_update_left:
 	// FIXME
+	bl		has_tacho_reached
 
 check_limb_motor_statechange_left:
 
