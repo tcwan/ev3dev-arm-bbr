@@ -170,4 +170,22 @@
 	bl		prog_display_integer_aligned
 	.endm
 
+/** record_systick
+ *
+ *    Macro to store current systick to systick_var
+ *
+ * Parameters:
+ *   None
+ * Returns:
+ *   None
+ *
+ * Registers r0 and r1 are modified
+ *
+ **/
+	.macro	record_systick	systick_var
+	bl		tick_systick				// returns current systick in r0
+	ldr		r1, =\systick_var
+	str		r0, [r1]					// record systick for current reading
+	.endm
+
 #endif

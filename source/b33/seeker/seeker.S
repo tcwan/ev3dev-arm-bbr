@@ -346,24 +346,6 @@ seqno_color:    .byte   0
  	strb	r3, [r9, #motor_forward_offset]
 	.endm
 
-/** record_systick
- *
- *    Macro to store current systick to systick_var
- *
- * Parameters:
- *   None
- * Returns:
- *   None
- *
- * Registers r0 and r1 are modified
- *
- **/
-	.macro	record_systick	systick_var
-	bl		tick_systick				// returns current systick in r0
- 	ldr		r1, =\systick_var
- 	str		r0, [r1]					// record systick for current reading
-	.endm
-
     .code 32
     .text
     .align
@@ -454,11 +436,6 @@ has_no_running_motors:
  *
  * Parameters:
  *    r0: pointer to limb motor control struct for \side
-
- *    r0: limb motor sequence number
- *    r1: pointer to tacho target position
- *    r2: signed relative position delta
- *    r3: signed speed
  * Returns:
  *    None
  */
@@ -484,7 +461,7 @@ set_limb_targetpos_and_start_tacho:
     bl      set_tacho_speed_sp
 
 	// Start motor
-    mov     r0, r4                          // retrieve motor sequence number
+    mov     r0, r5                          // retrieve motor sequence number
     mov     r1, #TACHO_RUN_MODE             // configure run mode
     bl      set_tacho_command_inx
 
@@ -504,8 +481,8 @@ set_limb_targetpos_and_start_tacho:
  *    If Arc is zero, then Step is decremented
  *
  * Parameters:
- *    r0: step count
- *    r1: arc count
+ *    r0: step count pointer
+ *    r1: arc count pointer
  * Returns:
  *    r0: TRUE if movement done
  */
@@ -1173,7 +1150,7 @@ actuator_limb_done_left:
 
 /** actuator_limb_right
  *
- * Coroutine for Limb Left Motor Control
+ * Coroutine for Limb Right Motor Control
  *
  */
   	CORO_CONTEXT actuator_limb_right
