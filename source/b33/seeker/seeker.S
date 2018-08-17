@@ -501,7 +501,7 @@ has_timer_expired:
 	movge	r0, #TRUE
 	pop		{r4, pc}
 
-#if 0
+#if 1
 /*****************************************************************************/
 /* Utiilty Functions to support motor_xxxx Coroutine Macros
 /*****************************************************************************/
@@ -1140,7 +1140,7 @@ check_limb_motor_statechange_left:
 actuator_limb_done_left:
  	pop	{r4, r5, r6, r7, r8}
  	CORO_YIELD
- 	b		actuator_limb_left_loop
+ 	b		actuator_limb_loop_left
  	CORO_END
 
 /** actuator_limb_right
@@ -1929,10 +1929,38 @@ init_robot:
     bl		getpid							// Retrieve the PID of the process, as srandom seed
 	bl		srandom							// Initialize random number generator
 
+	// Setup Escape State to ESCAPE_IDLE
+	mov		r0, #ESCAPE_IDLE
+	ldr		r1, =escape_state
+	strb	r0, [r1]
+
 	// Configure Head Position state
 	ldr		r1, =headpos_state				// Setup head position state pointer
 	mov		r0, #HEADPOS_UNKNOWN
 	strb	r0, [r1]						// Update current Head Position State
+
+	// Setup Head State to HEAD_IDLE
+	mov		r0, #HEAD_IDLE
+	ldr		r1, =head_state
+	strb	r0, [r1]
+
+	// Setup Limb States to LIMB_IDLE
+	mov		r0, #LIMB_IDLE
+	ldr		r1, =limb_state_left
+	strb	r0, [r1]
+	ldr		r1, =limb_state_right
+	strb	r0, [r1]
+
+	// Setup Limb Actuator Movement Struct
+	mov		r0, #0
+	ldr		r1, =limb_actuator_struct
+	mov		r2, #limb_actuator_struct_size
+
+limb_actuator_struct_init_loop:
+	sub		r2, r2, #1
+	strb	r0, [r1, r2]
+	teq		r2, #0
+	bne		limb_actuator_struct_init_loop
 
 	// Setup Robot State to ROBOT_IDLE
 	mov		r0, #ROBOT_IDLE
