@@ -610,14 +610,55 @@ set_targetpos_and_start_limb_tacho:
     mov     r0, r4                          // retrieve motor sequence number
     mov     r1, #TACHO_RUN_MODE             // configure run mode
     bl      set_tacho_command_inx
-#if 1
+
     // increment num_running_motors
     ldr     r1, =num_running_motors
     ldr     r0, [r1]
     add     r0, r0, #1
     str     r0, [r1]
-#endif
+
     pop     {r4, r5, pc}
+
+/** update_and_check_steps_done
+ *
+ * Movement is counted in steps, which comprises of multiple arcs
+ *
+ *    Arc is decremented to zero
+ *    If Arc is zero, then Step is decremented
+ *
+ * Parameters:
+ *    r0: step count
+ *    r1: arc count
+ * Returns:
+ *    r0: TRUE if movement done
+ */
+update_and_check_steps_done:
+    push    {lr}
+	ldrb	r2, [r0]						// Get step count
+	ldrb	r3, [r1]						// Get arc count
+
+	subs	r3, r3, #1
+	strb	r3, [r1]						// Decrement arc count
+	bgt		steps_not_done
+
+arcs_done:
+	subs	r2, r2, #1
+	strb	r2, [r1]						// Decrement step count
+	beq		steps_done						// If num steps is zero, movement is done
+
+update_arc_count:
+    mov     r0, #(1 << ROTATION_SCALING)
+    strb	r0, [r1]						// Reload num arcs for next step
+    b		steps_not_done
+
+steps_done:
+	mov		r0, #TRUE
+    pop     {pc}
+
+steps_not_done:
+	mov		r0, #FALSE
+    pop     {pc}
+
 
 /** stop_limb_tacho
  *
@@ -630,12 +671,12 @@ stop_limb_tacho:
     push    {lr}
     mov     r1, #TACHO_STOP                 // stop motor
     bl      set_tacho_command_inx
-#if 1
+
     ldr     r1, =num_running_motors
     ldr     r0, [r1]
     sub     r0, r0, #1
     str     r0, [r1]                        // decrement num_running_motors
-#endif
+
     pop     {pc}
 
 /*****************************************************************************/
@@ -902,6 +943,7 @@ move_right:
 
 exit_movement_selector:
 	pop		{pc}
+
 #if 0
 /*****************************************************************************/
 /* Coroutine Instantiation
@@ -1134,20 +1176,61 @@ check_limb_moving_left:
 
 check_limb_waitsync_left:
 	cmp		r0, #LIMB_WAITSYNC
+	bne		clear_limb_state_left			// Unknown state, clear to LIMB_IDLE
+
 	bl		has_no_running_motors
 	cmp		r0, #TRUE
-	bne		clear_limb_state_left			// Unknown state, clear to LIMB_IDLE
+	bne		actuator_limb_done_left			// Some motors are still active, skip
 
 update_limb_state_waitsync_left:
 	mov		r0, #LIMB_DONESYNC
 	strb	r0, [r4]
-	b		actuator_limb_done_left			// Wait till next event loop (WAIT-YIELD semantics)
+	b		actuator_limb_done_left			// Wait till next event loop to restart motor (WAIT-YIELD semantics)
 
 limb_moving_update_left:
-	// FIXME
-	bl		has_tacho_reached
+	// FIXME: Parameters
+	bl		has_limb_reached_targetpos
+	cmp		r0, #TRUE
+	bne		actuator_limb_done_left			// Limb has not completed movement, skip
+
+    ldr     r0, =seqno_left
+    ldrb    r0, [r0]                        // Setup motor sequence number
+    bl      stop_limb_tacho                 // Stop motor
+
+update_remaining_limb_steps_arc:
+	ldr		r0, =step_count_left
+	ldr		r1, =arc_count_left
+	bl		update_and_check_steps_done		// returns TRUE if movement done
+	cmp		r0, #TRUE
+	beq		limb_stop_left					// Movement done, so flag update
+
+	mov		r0, #LIMB_WAITSYNC
+	strb	r0, [r4]						// Update state
+	b		actuator_limb_done_left			// Wait for other motors to complete movement
 
 check_limb_motor_statechange_left:
+	// LIMB_DONESYNC should continue movement even if no parameters have changed
+
+	// FIXME
+
+limb_start_left:
+	// FIXME: Parameters
+//    mov     r2, r2, asr #ROTATION_SCALING   // setup scaled countperrot value
+    ldr     r0, =seqno_left
+    ldrb    r0, [r0]                        // Setup motor sequence number
+    bl      set_targetpos_and_start_limb_tacho   // Set new target and start motor
+
+limb_stop_left:
+	ldr		r4, =limb_state_left
+	mov		r0, #LIMB_DONE
+	strb	r0, [r4]						// Update state to LIMB_DONE
+
+	ldr		r0, =motor_control_struct_prev_limb_left
+	bl		config_motor_stop				// Indicate motor has stopped in control struct
+	ldr		r0, =motor_control_struct_limb_left
+	bl		config_motor_stop				// Indicate motor has stopped in control struct
+
+	// Let Behaviors pick up LIMB_DONE state update in next event loop
 
 actuator_limb_done_left:
  	pop	{r4, r5, r6, r7, r8}
