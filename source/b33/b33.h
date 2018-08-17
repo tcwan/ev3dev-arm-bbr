@@ -44,6 +44,46 @@
 #define COLOR_READ_INTERVAL (3 * TICKS_PER_MSEC)		// 3 ms
 
 
+/*****************************************************************************/
+/* Enums
+/*****************************************************************************/
+    // Robot State Enums
+    ENUM_0		ROBOT_QUIT
+    ENUM_N		ROBOT_IDLE
+    ENUM_N		ROBOT_LOWER_HEAD
+    ENUM_N		ROBOT_FOLLOW_PATH
+    ENUM_N		ROBOT_ESCAPE
+
+    // Escape State Enums
+    ENUM_0		ESCAPE_IDLE
+    ENUM_N		ESCAPE_ESCAPING
+    ENUM_N		ESCAPE_DONE
+
+    // Movement Enums
+    ENUM_0		MOVE_STOP
+    ENUM_N		MOVE_FORWARD
+    ENUM_N		MOVE_REVERSE
+    ENUM_N		MOVE_LEFT
+    ENUM_N		MOVE_RIGHT
+
+    // Head Position Enums
+    ENUM_0		HEADPOS_UNKNOWN
+    ENUM_N		HEADPOS_DOWN
+    ENUM_N		HEADPOS_UP
+
+    // Head Actuator State Enums
+    ENUM_0		HEAD_IDLE
+    ENUM_N		HEAD_MOVING_DOWN
+    ENUM_N		HEAD_MOVING_UP
+    ENUM_N		HEAD_MOVING_DONE
+
+    // Limb Actuator State Enums
+    ENUM_0		LIMB_IDLE
+    ENUM_N		LIMB_MOVING
+    ENUM_N		LIMB_WAITSYNC
+    ENUM_N		LIMB_DONESYNC				// Needed to support WAIT-YIELD semantics
+    ENUM_N		LIMB_DONE
+
 	.extern	usleep
 
 	/** WAIT_500US

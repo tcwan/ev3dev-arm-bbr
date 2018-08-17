@@ -50,50 +50,12 @@
     .equiv  NUM_MOTORS, 2
     // Scaling factor in no. of right bitshifts for countperrot (ASR 2 == div. 4 [90 deg])
     .equiv  ROTATION_SCALING, 2
+	// Number of rotation arcs per step
+    .equiv	NUM_ARCS_PER_STEP, (1 << ROTATION_SCALING)
 
     // Color Sensor Parameters
 	.equiv	NUM_COLOR_READINGS, 5
 	.equiv	SIZE_COLOR_READING, 4								// 32-bit values
-
-/*****************************************************************************/
-/* Enums
-/*****************************************************************************/
-    // Robot State Enums
-    ENUM_0		ROBOT_QUIT
-    ENUM_N		ROBOT_IDLE
-    ENUM_N		ROBOT_LOWER_HEAD
-    ENUM_N		ROBOT_FOLLOW_PATH
-    ENUM_N		ROBOT_ESCAPE
-
-    // Escape State Enums
-    ENUM_0		ESCAPE_IDLE
-    ENUM_N		ESCAPE_ESCAPING
-    ENUM_N		ESCAPE_DONE
-
-    // Movement Enums
-    ENUM_0		MOVE_STOP
-    ENUM_N		MOVE_FORWARD
-    ENUM_N		MOVE_REVERSE
-    ENUM_N		MOVE_LEFT
-    ENUM_N		MOVE_RIGHT
-
-    // Head Position Enums
-    ENUM_0		HEADPOS_UNKNOWN
-    ENUM_N		HEADPOS_DOWN
-    ENUM_N		HEADPOS_UP
-
-    // Head Actuator State Enums
-    ENUM_0		HEAD_IDLE
-    ENUM_N		HEAD_MOVING_DOWN
-    ENUM_N		HEAD_MOVING_UP
-    ENUM_N		HEAD_MOVING_DONE
-
-    // Limb Actuator State Enums
-    ENUM_0		LIMB_IDLE
-    ENUM_N		LIMB_MOVING
-    ENUM_N		LIMB_WAITSYNC
-    ENUM_N		LIMB_DONESYNC				// Needed to support WAIT-YIELD semantics
-    ENUM_N		LIMB_DONE
 
     .data
     .align
@@ -139,7 +101,7 @@ exceeded_loopcnt_str:	.asciz "Exceeded Count: "
  **/
 	.macro MOTOR_CONTROL_STRUCT	side
 	.align
-	// Speed control variables
+	// Motor Actuator parameters
 	// The struct layout groups similar sized variables to optimize space allocation with data alignment
 motor_control_struct_\side:
 motor_speed_\side:		.word	0				// absolute value (magnitude only)
@@ -154,6 +116,33 @@ motor_numsteps_\side:	.byte	0
 	.equ motor_forward_offset, motor_forward_\side - motor_control_struct_\side
 	.equ motor_numsteps_offset, motor_numsteps_\side - motor_control_struct_\side
 	.endm
+
+
+/** Limb Movement Control Data Structure
+ *
+ **/
+	.macro LIMB_MOTOR_STRUCT	side
+    .align
+	// Limb Motor control variables
+	// The struct layout groups similar sized variables to optimize space allocation with data alignment
+limb_motor_struct_\side:
+limb_currpos_\side:		.word	0
+limb_targetpos_\side:	.word	0
+sgn_limb_deltapos_\side:.word	0
+sgn_limb_speed_\side:	.word	0
+limb_forward_\side:		.byte	FALSE
+limb_seqno_\side:		.byte	0				// Keep it in the struct to avoid using another pointer
+
+	 // The equates using .equ can be set by multiple macro invocations
+	.equ limb_control_struct_size, . - limb_motor_struct_\side
+	.equ limb_currpos_offset, limb_currpos_\side - limb_motor_struct_\side
+	.equ limb_targetpos_offset, limb_targetpos_\side - limb_motor_struct_\side
+	.equ sgn_limb_deltapos_offset, sgn_limb_deltapos_\side - limb_motor_struct_\side
+	.equ sgn_limb_speed_offset, sgn_limb_speed_\side - limb_motor_struct_\side
+	.equ limb_forward_offset, limb_forward_\side - limb_motor_struct_\side
+	.equ limb_seqno_offset, limb_seqno_\side - limb_motor_struct_\side
+	.endm
+
 
 // Need to align the following data, otherwise the string termination is not guaranteed
     .align
@@ -178,17 +167,15 @@ color_intensity_array: .space	(NUM_COLOR_READINGS * SIZE_COLOR_READING), 0x0		//
 head_prevpos:	.word	0
 head_currpos:	.word	0
 
-#if 1
 /* Limb Motor Coroutine synchronization variable */
 num_running_motors: .word    0
-#endif
 
 /* Motor Rotation related parameter */
 countperrot:    .word   0                   // Tacho count per rotation (360 deg)
                                             // Assume identical for both limb motors
 
 /*****************************************************************************/
-/* Motor Actuator speed control structs (word aligned)
+/* Motor Actuator speed control structs
 /*****************************************************************************/
 	MOTOR_CONTROL_STRUCT	head
 	MOTOR_CONTROL_STRUCT	left
@@ -207,6 +194,13 @@ mcs_enable_offset:	.word		motor_enable_offset
 mcs_forward_offset:	.word		motor_forward_offset
 mcs_numsteps_offset: .word		motor_numsteps_offset
 #endif
+
+/*****************************************************************************/
+/* Limb Motor variables
+/*****************************************************************************/
+	LIMB_MOTOR_STRUCT		left
+	LIMB_MOTOR_STRUCT		right
+
 /*****************************************************************************/
 /* Program Specific Variables (byte aligned)
 /*****************************************************************************/
@@ -316,7 +310,6 @@ seqno_color:    .byte   0
     .macro      DEFINE_COROUTINE_MOTOR    side
 
     // Coroutine Variables for motor_\side
-    .data
     .align
     CORO_LOCAL      tacho_enable_\side, byte, 0
     CORO_LOCAL      tacho_forward_\side, byte, 0
@@ -407,7 +400,7 @@ motor_config_\side:
 
     ldr     r1, =count_\side
     // determine no. of times to move motor using scaled rotation angle (subset of 360 deg)
-    mov     r0, #(1 << ROTATION_SCALING)
+    mov     r0, #NUM_ARCS_PER_STEP
     strb    r0, [r1]
 
 advance_\side:
@@ -424,7 +417,7 @@ advance_\side:
 	bne		update_target_\side				// tacho_forward_\side is TRUE, so skip
 
 	// Reverse motion
-	rsb		r2, r2, #0						// Calculate 2's complement for r1 (r1 := 0 - r1)
+	rsb		r2, r2, #0						// Calculate 2's complement for r2 (r2 := 0 - r2)
 	rsb		r3, r3, #0						// Calculate 2's complete for r3 (r3 := 0 - r3)
 
 update_target_\side:
@@ -455,6 +448,40 @@ motor_end_\side:
     .endm
 
 /*****************************************************************************/
+/** load_and_copy_motor_control_structs
+ *
+ *    Macro to load new and prev motor_control_structs, and copy
+ *    new motor_control_structs to prev motor_control_structs
+ *
+ * Parameters:
+ *   new_control_struct: Pointer to new control struct
+ *   prev_control_struct: Pointer to
+ * Returns:
+ *   None
+ *
+ * Registers r0-r9 are modified
+ *
+ **/
+	.macro	load_and_copy_motor_control_structs new_control_struct, prev_control_struct
+ 	ldr		r8, =\new_control_struct
+ 	ldr		r9, =\prev_control_struct
+
+	// Current Motor Actuator settings
+ 	ldrb	r0, [r8, #motor_enable_offset]
+ 	ldr		r1, [r8, #motor_speed_offset]
+ 	ldrb	r2, [r8, #motor_numsteps_offset]
+ 	ldrb	r3, [r8, #motor_forward_offset]
+ 	// Previous Motor Actuator settings
+ 	ldrb	r4, [r9, #motor_enable_offset]
+ 	ldr		r5, [r9, #motor_speed_offset]
+  	ldrb	r6, [r9, #motor_numsteps_offset]
+  	ldrb	r7, [r9, #motor_forward_offset]
+ 	// Update Previous Motor Actuator settings with new requests
+ 	strb	r0, [r9, #motor_enable_offset]
+ 	str		r1, [r9, #motor_speed_offset]
+ 	strb	r2, [r9, #motor_numsteps_offset]
+ 	strb	r3, [r9, #motor_forward_offset]
+	.endm
 
 /** record_systick
  *
@@ -511,36 +538,32 @@ has_timer_expired:
  *   Check function for Coroutine motor_xxxx
  *
  * Parameters:
- *    r0: pointer to tacho target position
+ *    r0: pointer to limb motor control struct for \side
  * Returns:
  *   r0: TRUE if target position reached, FALSE otherwise
  *
  **/
 has_limb_reached_targetpos:
-	//FIXME
     push    {r4, lr}
-    ldr     r0, =seqno_\side
-    ldrb    r0, [r0]                        // Retrieve motor sequence number
-    ldr     r4, =tacho_currpos_\side
-    mov     r1, r4                          // Setup parameter
-    bl      get_tacho_position              // Record current position for motor_\side
+    mov		r4, r0							// Use r4 to access limb motor control struct
+    ldrb    r0, [r4, #limb_seqno_offset]	// Retrieve motor sequence number
+    add		r1, r4, #limb_currpos_offset	// Point to current position variable address
+    bl      get_tacho_position				// Record current position for motor_\side
 
-    ldr     r0, [r4]                        // Retrieve current position
-    ldr     r1, =tacho_targetpos_\side
-    ldr     r1, [r1]                        // Target Position for motor_\side
+    ldr     r0, [r4, #limb_currpos_offset]	// Retrieve current position
+    ldr     r1, [r4, #limb_targetpos_offset]// Target Position for motor_\side
 
-    ldr		r2, =tacho_forward_\side		// Retrieve forward direction flag (boolean)
-    ldrb	r2, [r2]
+    ldrb	r2, [r4, #limb_forward_offset]
     cmp		r2, #FALSE
-    beq		check_reverse_\side
+    beq		check_reverse_targetpos
 
-check_forward_\side:
+check_forward_targetpos:
     cmp     r0, r1                          // (currposition - targetposition) < 0?
     movge   r0, #TRUE
     movlt   r0, #FALSE
     pop     {r4, pc}
 
-check_reverse_\side:
+check_reverse_targetpos:
     cmp     r0, r1                          // (currposition - targetposition) > 0?
     movle   r0, #TRUE
     movgt   r0, #FALSE
@@ -647,7 +670,7 @@ arcs_done:
 	beq		steps_done						// If num steps is zero, movement is done
 
 update_arc_count:
-    mov     r0, #(1 << ROTATION_SCALING)
+    mov     r0, #NUM_ARCS_PER_STEP
     strb	r0, [r1]						// Reload num arcs for next step
     b		steps_not_done
 
@@ -881,7 +904,7 @@ config_motor_reverse:
  *
  * Parameters:
  *   r0: Movement type Enum
- *   r1: Movement Speed
+ *   r1: Movement Speed (magnitude)
  *   r2: Number of Steps
  * Returns:
  *   None
@@ -989,7 +1012,7 @@ exit_movement_selector:
  	CORO_CONTEXT actuator_head
  	CORO_START	actuator_head
 actuator_head_loop:
- 	push	{r4, r5, r6, r7, r8}
+ 	push	{r4, r5, r6, r7, r8, r9}
 
 check_actuator_head_state:
 	ldr		r4, =head_state
@@ -1020,27 +1043,13 @@ head_moving_update:
 	b		actuator_head_done				// Wait for next activation to check again
 
 check_head_motor_statechange:
-	// Record staring position
+	// Record staring position first as it will destroy r0-r3 used later
     ldr     r0, =head_prevpos
     bl      record_head_position            // Record starting position for head motor
 
- 	ldr		r7, =motor_control_struct_head
- 	ldr		r8, =motor_control_struct_prev_head
-
-	// Current Head Actuator settings
- 	ldrb	r0, [r7, #motor_enable_offset]
- 	ldr		r1, [r7, #motor_speed_offset]
- 	mov		r2, #0		// Reserved for numsteps parameter (not used)
- 	ldrb	r3, [r7, #motor_forward_offset]
- 	// Previous Head Actuator settings
- 	ldrb	r4, [r8, #motor_enable_offset]
- 	ldr		r5, [r8, #motor_speed_offset]
- 	ldrb	r6, [r8, #motor_forward_offset]
- 	// Update Previous Head Actuator settings with new requests
- 	strb	r0, [r8, #motor_enable_offset]
- 	str		r1, [r8, #motor_speed_offset]
- 	strb	r2, [r8, #motor_numsteps_offset]	// Clear numsteps
- 	strb	r3, [r8, #motor_forward_offset]
+	load_and_copy_motor_control_structs motor_control_struct_head motor_control_struct_prev_head
+	mov		r2, #0
+ 	strb	r2, [r9, #motor_numsteps_offset]		// Override numsteps parameter
 
  	cmp		r0, r4
  	bne		head_motor_statechange
@@ -1054,7 +1063,7 @@ compare_head_motor_speeds:
 	bne		head_motor_start	// Update motor config if different
 
 compare_head_motor_direction:
-	cmp		r3, r6
+	cmp		r3, r7
 	bne		head_motor_start	// Update motor config if different
 
 	b		actuator_head_done	// No match, so exit
@@ -1092,7 +1101,7 @@ head_motor_stop:
 	// Let Behaviors pick up HEAD_MOVING_DONE state update in next event loop
 
 actuator_head_done:
- 	pop	{r4, r5, r6, r7, r8}
+ 	pop	{r4, r5, r6, r7, r8, r9}
  	CORO_YIELD
  	b		actuator_head_loop
  	CORO_END
@@ -1141,17 +1150,17 @@ actuator_head_done:
  *  Endif
  *
  */
+
 /** actuator_limb_left
  *
  * Coroutine for Limb Left Motor Control
  *
  */
-
- 	CORO_CONTEXT actuator_limb_left
+  	CORO_CONTEXT actuator_limb_left
  	CORO_START	actuator_limb_left
 
 actuator_limb_loop_left:
- 	push	{r4, r5, r6, r7, r8}
+ 	push	{r4, r5, r6, r7, r8, r9}
 
 check_actuator_limb_state_left:
 	ldr		r4, =limb_state_left
@@ -1193,6 +1202,7 @@ limb_moving_update_left:
 	cmp		r0, #TRUE
 	bne		actuator_limb_done_left			// Limb has not completed movement, skip
 
+limb_reached_targetpos_left:
     ldr     r0, =seqno_left
     ldrb    r0, [r0]                        // Setup motor sequence number
     bl      stop_limb_tacho                 // Stop motor
@@ -1209,31 +1219,101 @@ update_remaining_limb_steps_arc:
 	b		actuator_limb_done_left			// Wait for other motors to complete movement
 
 check_limb_motor_statechange_left:
-	// LIMB_DONESYNC should continue movement even if no parameters have changed
+	load_and_copy_motor_control_structs		motor_control_struct_left motor_control_struct_prev_left
+ 	cmp		r0, r4
+ 	bne		limb_motor_statechange_left
 
-	// FIXME
+check_limb_motor_update_left:
+ 	cmp		r0, #TRUE			// Limb actuator enabled?
+ 	bne		actuator_limb_done_left	// Stopped, so nothing else to check
+
+compare_limb_motor_speeds_left:
+	cmp		r1, r5				// Compare speeds
+	bne		limb_start_left	// Update motor config if different
+
+compare_limb_numsteps_left:
+	cmp		r2, r6				// Compare num steps
+	beq		compare_limb_motor_direction_left
+	cmp		r2, #0				// Check if numsteps is non-zero
+	bne		limb_start_left		// Update motor config if non-zero
+	beq		limb_stop_left		// Otherwise stop movement	Note: Don't call stop_limb_tacho since it'll update num_running_motors
+
+compare_limb_motor_direction_left:
+	cmp		r3, r7
+	bne		limb_start_left		// Update motor config if different
+
+limb_motor_state_unchanged_left:
+	ldr		r4, =limb_state_left
+	ldrb	r0, [r4]
+	cmp		r0, #LIMB_DONESYNC
+	beq		limb_continue_left				// Should continue movement
+
+	b		actuator_limb_done_left			// No change, skip
+
+limb_motor_statechange_left:
+ 	cmp		r0, #TRUE						// Limb actuator enabled?
+ 	bne		limb_stop_left
 
 limb_start_left:
+	// Setup Limb Tacho parameters with signed values using the inputs
 	// FIXME: Parameters
 //    mov     r2, r2, asr #ROTATION_SCALING   // setup scaled countperrot value
+
+    ldr     r4, =limb_motor_struct_left
+    strb	r3, [r4, #limb_forward_offset]	// Record movement direction
+
+	ldr		r5, =step_count_left
+	ldr		r6, =arc_count_left
+	strb	r2, [r5]						// Num Steps
+	mov		r2, #NUM_ARCS_PER_STEP
+	strb	r2, [r6]						// Arc Count
+
+    ldr		r0, =countperrot
+    ldr		r0, [r0]						// Retrieve unsigned countperrot value
+    asr     r0, r0, #ROTATION_SCALING  		// setup scaled countperrot value
+
+	cmp		r3, #TRUE
+	beq		store_limb_parameters_left
+
+reverse_limb_parameters_left:
+	neg		r0, r0							// Calculate 2's complement of position delta in r0
+	neg		r1, r1							// Calculate 2's complement of speed in r1
+
+store_limb_parameters_left:
+	str		r0, [r4, #sgn_limb_deltapos_offset]	// Record signed position delta
+	str		r1, [r4, #sgn_limb_speed_offset]	// Record signed speed
+
+store_initial_targetpos_left:
+	// Setup Initial Limb Target Position
+    ldr     r0, =seqno_left
+    ldrb    r0, [r0]                        // Retrieve sequence number
+    add		r1, r4, #limb_currpos_offset	// point to limb_currpos variable in struct
+    bl      get_tacho_position              // Record initial limb target tacho position
+
+limb_continue_left:
     ldr     r0, =seqno_left
     ldrb    r0, [r0]                        // Setup motor sequence number
     bl      set_targetpos_and_start_limb_tacho   // Set new target and start motor
+
+	ldr		r4, =limb_state_left
+	mov		r0, #LIMB_MOVING
+	strb	r0, [r4]						// Update state to LIMB_MOVING
+	b		actuator_limb_done_left
 
 limb_stop_left:
 	ldr		r4, =limb_state_left
 	mov		r0, #LIMB_DONE
 	strb	r0, [r4]						// Update state to LIMB_DONE
 
-	ldr		r0, =motor_control_struct_prev_limb_left
+	ldr		r0, =motor_control_struct_prev_left
 	bl		config_motor_stop				// Indicate motor has stopped in control struct
-	ldr		r0, =motor_control_struct_limb_left
+	ldr		r0, =motor_control_struct_left
 	bl		config_motor_stop				// Indicate motor has stopped in control struct
 
 	// Let Behaviors pick up LIMB_DONE state update in next event loop
 
 actuator_limb_done_left:
- 	pop	{r4, r5, r6, r7, r8}
+ 	pop	{r4, r5, r6, r7, r8, r9}
  	CORO_YIELD
  	b		actuator_limb_loop_left
  	CORO_END
@@ -1867,13 +1947,23 @@ found_motors:
 setup_motors:
     push    {r4, r5, lr}
 
+	// Setup limb motor struct
+	ldr		r4, =limb_motor_struct_left
+	ldr		r5, =limb_motor_struct_right
+
+	ldr		r0, =seqno_left                 // read left motor seqno U8 from memory into r0
+	ldrb	r0, [r0]
+	strb	r0, [r4, #limb_seqno_offset]	// Configure the limb motor struct
+	ldr		r1, =seqno_right                // read right motor seqno U8 from memory into r0
+	ldrb	r1, [r1]
+	strb	r1, [r5, #limb_seqno_offset]	// Configure the limb motor struct
+
     // Limb motor configuration
     ldr     r4, =countperrot                // Pointer to variable
     ldr     r5, =motors_vec                 // setup motor vector
 
     // Retrieve countperrot value from left motor
-    ldr     r0, =seqno_left
-    ldrb    r0, [r0]                        // read left motor seqno U8 from memory into r0
+	// left motor seqno is already in r0
     mov     r1, r4
     bl      get_tacho_count_per_rot         // retrieve count per rotation
 
