@@ -18,7 +18,7 @@
 #include "ev3dev-arm-bbr.h"
 
 #define ROBOT_STATE_ROW		7						// Robot State Display Row on output screen
-#define ROBOT_DEBUG_ROW		8						// Robot Debug Display Row on output screen
+#define ROBOT_DEBUG_ROW		10						// Robot Debug Display Row on output screen
 #define DEBUG_INT_WIDTH     6						// Alignment width for integer value
 
 #define EVENTLOOP_TICKCOUNT (100 * TICKS_PER_MSEC)	// 100 ms per event loop
@@ -40,7 +40,6 @@
 #define HEAD_STOP_MODE      TACHO_BRAKE
 #define HEAD_RUN_MODE       TACHO_RUN_FOREVER
 #define HEAD_STOPPED_SLACK  2						// Change in readings to indicate that head has stopped
-#define HEAD_MOVEMENT_INTERVAL (100 * TICKS_PER_MSEC)	// 100 ms
 
 #define COLOR_READ_INTERVAL (3 * TICKS_PER_MSEC)		// 3 ms
 

@@ -899,15 +899,12 @@ exit_movement_selector:
  *      Update head_state
  *
  *  Else if (head_state == HEAD_MOVING*)
- *      If timer expired, check if head position has stopped
- *          If head position has stopped, head_state = HEAD_DONE, update control structs
- *          Else update timer expiry and new head motor position
+ *      If head position has stopped, head_state = HEAD_DONE, update control structs
+ *      Else update new head motor position
  *  Else
  *		Reset head_state = HEAD_IDLE
  *  Endif
  */
-	.align
-	CORO_LOCAL	timer_expiry_head, word, 0
 
  	CORO_CONTEXT actuator_head
  	CORO_START	actuator_head
@@ -937,17 +934,10 @@ check_head_moving:
 	b		clear_head_state				// Unknown state, clear to HEAD_IDLE
 
 head_moving_update:
-	ldr		r5, =timer_expiry_head			// Setup pointer to timer expiry
-	ldr		r0, [r5]
-	bl		has_timer_expired
-	cmp		r0, #TRUE
-	bne		actuator_head_done				// Still not expired, skip
-
-head_timer_has_expired:
 	bl		has_head_stopped
 	cmp		r0, #TRUE
 	beq		head_motor_stop					// Head stopped
-	b		update_head_timer_expiry
+	b		actuator_head_done				// Wait for next activation to check again
 
 check_head_motor_statechange:
 	// Record staring position
@@ -1004,21 +994,12 @@ head_motor_start:
 	// enable head motor
  	mov		r0, r3				// r0: forward, r1: speed
  	bl		start_head_tacho
-
-	record_systick timer_expiry_head		// Setup initial value for timer expiry
-
-update_head_timer_expiry:
-	ldr		r5, =timer_expiry_head			// Setup pointer to timer expiry
-	ldr		r0, [r5]						// Get current timer
-	ldr		r1, =HEAD_MOVEMENT_INTERVAL
-	add		r0, r1, r0
-	str		r0, [r5]						// Update timer expiry
 	b		actuator_head_done				// Wait for next activation to check again
 
 head_motor_stop:
 	ldr		r4, =head_state
 	mov		r0, #HEAD_MOVING_DONE
-	strb	r0, [r4]						// Update state to HEAD_DONE
+	strb	r0, [r4]						// Update state to HEAD_MOVING_DONE
 
 	// The head actuator automatically stops the motor
 	bl		stop_head_tacho					// Stop head motor
@@ -1129,11 +1110,6 @@ update_limb_state_waitsync_left:
 
 limb_moving_update_left:
 	// FIXME
-	ldr		r5, =timer_expiry_head			// Setup pointer to timer expiry
-	ldr		r0, [r5]
-	bl		has_timer_expired
-	cmp		r0, #TRUE
-	bne		actuator_head_done				// Still not expired, skip
 
 check_limb_motor_statechange_left:
 
