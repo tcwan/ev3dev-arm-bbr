@@ -798,6 +798,28 @@ move_right:
 exit_movement_selector:
 	pop		{pc}
 
+/** check_limb_waitsync_done
+ *
+ * Parameters:
+ *    r0: Pointer to Limb State
+ * Returns:
+ *   None
+ */
+
+check_limb_waitsync_done:
+	push	{r4, lr}
+	mov		r4, r0							// Keep limb state pointer
+	bl		has_no_running_motors
+	cmp		r0, #TRUE
+	bne		exit_limb_waitsync_done			// Some motors are still active, skip
+
+update_limb_state_donesync:
+	mov		r0, #LIMB_DONESYNC
+	strb	r0, [r4]
+
+exit_limb_waitsync_done:
+	pop		{r4, pc}
+
 
 /*****************************************************************************/
 /* Literal Pool Instantiation
@@ -1018,13 +1040,8 @@ check_limb_waitsync_left:
 	cmp		r0, #LIMB_WAITSYNC
 	bne		clear_limb_state_left			// Unknown state, clear to LIMB_IDLE
 
-	bl		has_no_running_motors
-	cmp		r0, #TRUE
-	bne		actuator_limb_done_left			// Some motors are still active, skip
-
-update_limb_state_waitsync_left:
-	mov		r0, #LIMB_DONESYNC
-	strb	r0, [r4]
+	ldr		r0, =limb_state_left
+	bl		check_limb_waitsync_done
 	b		actuator_limb_done_left			// Wait till next event loop to restart motor (WAIT-YIELD semantics)
 
 limb_moving_update_left:
@@ -1186,14 +1203,9 @@ check_limb_waitsync_right:
 	cmp		r0, #LIMB_WAITSYNC
 	bne		clear_limb_state_right			// Unknown state, clear to LIMB_IDLE
 
-	bl		has_no_running_motors
-	cmp		r0, #TRUE
-	bne		actuator_limb_done_right			// Some motors are still active, skip
-
-update_limb_state_waitsync_right:
-	mov		r0, #LIMB_DONESYNC
-	strb	r0, [r4]
-	b		actuator_limb_done_right			// Wait till next event loop to restart motor (WAIT-YIELD semantics)
+	ldr		r0, =limb_state_right
+	bl		check_limb_waitsync_done
+	b		actuator_limb_done_right		// Wait till next event loop to restart motor (WAIT-YIELD semantics)
 
 limb_moving_update_right:
 	mov		r0, r5
@@ -2241,6 +2253,22 @@ actuator_controller:
 	CORO_CALL	actuator_limb_left
 	CORO_CALL	actuator_limb_right
 
+	// Reduce wait-yield duration by 1 event loop by checking outside the actuator coroutines
+check_waitsync_left:
+	ldr		r0, =limb_state_left
+	ldrb	r1, [r0]
+	cmp		r1, #LIMB_WAITSYNC
+	bne		check_waitsync_right
+	bl		check_limb_waitsync_done
+
+check_waitsync_right:
+	ldr		r0, =limb_state_right
+	ldrb	r1, [r0]
+	cmp		r1, #LIMB_WAITSYNC
+	bne		done_check_waitsync
+	bl		check_limb_waitsync_done
+
+done_check_waitsync:
 /*****************************************************************************/
 
 event_sleep:
