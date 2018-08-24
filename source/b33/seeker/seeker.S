@@ -497,7 +497,7 @@ update_and_check_steps_done:
 
 arcs_done:
 	subs	r2, r2, #1
-	strb	r2, [r1]						// Decrement step count
+	strb	r2, [r0]						// Decrement step count
 	beq		steps_done						// If num steps is zero, movement is done
 
 update_arc_count:
@@ -638,20 +638,6 @@ exit_has_head_stopped:
  *   r0: TRUE if stopped, else FALSE
   */
 is_escape_movement_done:
-
-#if 1
-	// FIXME
-	mov		r0, #TRUE
-	mov		pc, lr
-#else
-/* This is too low level for behaviors to check
-	ldr		r1, =limb_actuator_struct
-	ldr		r0, [r1]						// contains byte values for num steps and num arcs
-	cmp		r0, #0							// Check if it is all done
-	moveq	r0, #TRUE						// No steps or arcs left, so we're done
-	mov		pc, lr
-*/
-
 	ldr		r2, =limb_state_left
 	ldr		r3, =limb_state_right
 	ldrb	r0, [r2]						// Get Left Limb State
@@ -670,8 +656,6 @@ flag_escape_not_done:
 flag_escape_done:
 	mov		r0, #TRUE
 	mov		pc, lr
-#endif
-
 
 /** config_motor_stop
  *
