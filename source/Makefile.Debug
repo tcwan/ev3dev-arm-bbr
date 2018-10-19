@@ -234,6 +234,9 @@ $(D_OBJ):
 
 $(D_BIN):
 	${MKDIR} ${D_BIN}
+	
+# -- suppress error when no header file present
+../*.h:
 
 # -- remove temporary files
 .PHONY: clean

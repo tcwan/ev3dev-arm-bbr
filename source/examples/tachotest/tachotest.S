@@ -23,6 +23,8 @@
 #define TACHO_RAMPTIME_MS	100						// 100 ms to ramp up/down to speed
 #define TACHO_STOP_MODE		TACHO_BRAKE				// TACHO_COAST, TACHO_BRAKE, TACHO_HOLD
 
+#define NUM_LOOPS			10
+
 	.data
 	.align
 
