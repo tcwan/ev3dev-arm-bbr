@@ -17,14 +17,14 @@ The book by Joseph L. Jones and Daniel Roth, *Robot Programming: A practical gui
 
 TBD
 
-# Updating depdent libraries
+# Updating dependent libraries
 
-ev3dev-arm-bbr is dependent on the ev3dev-c module. In order to avoid breaking changes, updating of ev3dev-c is not automatic. To perform an update, the following steps must be taken:
+ev3dev-arm-bbr is dependent on the ev3dev-c library. In order to avoid breaking changes, updating of ev3dev-c is not automatic. To perform an update, the following steps must be taken:
 
 ```
 run `scripts/updatelibs.sh`
 $ cd ev3dev-c
- determine the latest commit from `git log`
+Determine the latest commit from `git log`
 $ git checkout <commit id> # to select the latest commit for ev3dev-c
 $ `cd ..`
 $ git checkin ev3dev-c # to commit updated ev3dev-c module to project
