@@ -27,5 +27,5 @@ $ cd ev3dev-c
 Determine the latest commit from `git log`
 $ git checkout <commit id> # to select the latest commit for ev3dev-c
 $ `cd ..`
-$ git checkin ev3dev-c # to commit updated ev3dev-c module to project
+$ git commit ev3dev-c # to commit updated ev3dev-c module to project
 ```
