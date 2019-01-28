@@ -15,7 +15,12 @@ The book by Joseph L. Jones and Daniel Roth, *Robot Programming: A practical gui
 
 # Getting Started
 
-TBD
+To download **ev3dev-arm-bbr**, you will need to use the following command since there are submodules that are referenced by the main project:
+```
+$ git clone --recurse-submodules https://github.com/tcwan/ev3dev-arm-bbr
+
+```
+
 
 # Updating dependent libraries
 
