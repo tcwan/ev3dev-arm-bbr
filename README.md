@@ -26,10 +26,19 @@ $ git clone --recurse-submodules https://github.com/tcwan/ev3dev-arm-bbr
 
 ev3dev-arm-bbr is dependent on the ev3dev-c library. In order to avoid breaking changes, updating of ev3dev-c is not automatic. To perform an update, the following steps must be taken:
 
+In general, to sync with the upstream **ev3dev-c** and forget local modifications made to the submodule, you can just delete the submodule directory and retrieve it again.
 ```
-run `scripts/updatelibs.sh`
+[In ev3dev-arm-bbr top level directory]
+$ rm -rf ev3dev-c		# Remove old submodule contents (WARNING: This will remove all locally modified files in the submodule)
+$ scripts/updatelibs.sh # Retrieve clean instance of submodule from upstream
+```
+
+If you need to select a specific branch or commit for the **ev3dev-c** library, then do the following:
+```
+[In ev3dev-arm-bbr top level directory]
+$ scripts/updatelibs.sh # Retrieve updates to submodule from upstream
 $ cd ev3dev-c
-Determine the latest commit from `git log`
+[Determine the latest commit from `git log`]
 $ git checkout <commit id> # to select the latest commit for ev3dev-c
 $ `cd ..`
 $ git commit ev3dev-c # to commit updated ev3dev-c module to project
