@@ -29,11 +29,11 @@ INX_T ev3_sensor_port_mode_inx(INX_T type_inx ) {
 
 	switch ( type_inx ) {
 	case EV3_ANALOG_XX:
-		return INPUT_EV3_ANALOG;
+		return EV3_INPUT_EV3_ANALOG;
 	case NXT_ANALOG:
-		return INPUT_NXT_ANALOG;
+		return EV3_INPUT_NXT_ANALOG;
 	case PIXY_LEGO:
-		return INPUT_NXT_I2C;
+		return EV3_INPUT_NXT_I2C;
 	case DI_DFLEX:
 		return NXT_ANALOG;
 	case FCL_9DOF:
@@ -43,13 +43,13 @@ INX_T ev3_sensor_port_mode_inx(INX_T type_inx ) {
 	case FCL_HUMIDITY:
 	case FCL_IR:
 	case FCL_LIGHT:
-		return INPUT_EV3_UART;
+		return EV3_INPUT_EV3_UART;
 	case HT_NXT_COLOR:
 	case HT_NXT_ANGLE:
 	case HT_NXT_ACCEL:
 	case HT_NXT_BAROMETRIC:
 	case HT_NXT_COLOR_V2:
-		return INPUT_NXT_I2C;
+		return EV3_INPUT_NXT_I2C;
 	case HT_NXT_EOPD:
 	case HT_NXT_FORCE:
 	case HT_NXT_GYRO:
@@ -58,21 +58,21 @@ INX_T ev3_sensor_port_mode_inx(INX_T type_inx ) {
 	case HT_NXT_IR_RECEIVER:
 	case HT_NXT_PIR:
 	case HT_NXT_COMPASS:
-		return INPUT_NXT_I2C;
+		return EV3_INPUT_NXT_I2C;
 	case HT_NXT_MAG:
 		return NXT_ANALOG;
 	case HT_NXT_IR_SEEK_V2:
 	case HT_NXT_SMUX:
 	case HT_SUPER_PRO:
-		return INPUT_NXT_I2C;
+		return EV3_INPUT_NXT_I2C;
 	case LEGO_EV3_US:
 	case LEGO_EV3_GYRO:
 	case LEGO_EV3_COLOR:
-		return INPUT_EV3_UART;
+		return EV3_INPUT_EV3_UART;
 	case LEGO_EV3_TOUCH:
-		return INPUT_EV3_ANALOG;
+		return EV3_INPUT_EV3_ANALOG;
 	case LEGO_EV3_IR:
-		return INPUT_EV3_UART;
+		return EV3_INPUT_EV3_UART;
 	case WEDO_HUB:
 		return PORT_MODE__NONE_;					// FIXME: USB Port (?)
 	case WEDO_MOTION:
@@ -80,13 +80,13 @@ INX_T ev3_sensor_port_mode_inx(INX_T type_inx ) {
 		return WEDO_AUTO;
 	case LEGO_POWER_STORAGE:
 	case LEGO_NXT_TEMP:
-		return INPUT_NXT_I2C;
+		return EV3_INPUT_NXT_I2C;
 	case LEGO_NXT_TOUCH:
 	case LEGO_NXT_LIGHT:
 	case LEGO_NXT_SOUND:
-		return INPUT_NXT_ANALOG;
+		return EV3_INPUT_NXT_ANALOG;
 	case LEGO_NXT_US:
-		return INPUT_NXT_I2C;
+		return EV3_INPUT_NXT_I2C;
 	case MI_XG1300L:
 	case MS_ABSOLUTE_IMU:
 	case MS_ANGLE:
@@ -97,13 +97,13 @@ INX_T ev3_sensor_port_mode_inx(INX_T type_inx ) {
 	case MS_8CH_SERVO:
 	case MS_PPS58_NX:
 	case MS_PIXY_ADAPTER:
-		return INPUT_NXT_I2C;
+		return EV3_INPUT_NXT_I2C;
 	case MS_EV3_SMUX:
 		return MS_EV3_SMUX_ANALOG;				// FIXME: There are two settings, MS_EV3_SMUX_ANALOG and MS_EV3_SMUX_UART
 	case MS_NXTMMX:
-		return MS_NXTMMX_TACHO_MOTOR;
+		return MS_NXTMMX_OUT_TACHO_MOTOR;
 	case MS_NXT_TOUCH_MUX:
-		return INPUT_NXT_ANALOG;
+		return EV3_INPUT_NXT_ANALOG;
 	default:
 		return PORT_MODE__NONE_;
 	}
@@ -210,7 +210,7 @@ bool dvcs_config_dc_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn ) 
 	bool retval = false;
 	uint8_t sn_port;
 
-	INX_T port_mode = OUTPUT_DC_MOTOR;
+	INX_T port_mode = EV3_OUTPUT_DC_MOTOR;
 
 
 	sn_port = ev3_search_port( port, extport );
@@ -230,7 +230,7 @@ bool dvcs_config_dc_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *sn ) 
 
 bool dvcs_reset_port_for_dc(U8 sn ) {
 	uint8_t sn_port = ev3_dc_desc_port(sn);
-	return (set_port_mode_inx(sn_port, OUTPUT_AUTO) > 0) ? true : false;
+	return (set_port_mode_inx(sn_port, EV3_OUTPUT_AUTO) > 0) ? true : false;
 }
 
 
@@ -262,7 +262,7 @@ bool dvcs_config_sensor_type_for_port(INX_T type_inx, U8 port, U8 extport, U8 *s
 
 bool dvcs_reset_port_for_sensor(U8 sn ) {
 	uint8_t sn_port = ev3_sensor_desc_port(sn);
-	return (set_port_mode_inx(sn_port, INPUT_AUTO) > 0) ? true : false;
+	return (set_port_mode_inx(sn_port, EV3_INPUT_AUTO) > 0) ? true : false;
 }
 
 #if 0
