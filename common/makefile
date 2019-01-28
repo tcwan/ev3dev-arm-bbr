@@ -112,7 +112,8 @@ endif
 
 # Enable Debug Symbols by default
 # -- compiler flags
-CFLAGS = $(addprefix -I, $(D_H)) -O2 -std=gnu99 -W -Wall -Wno-comment -g
+#CFLAGS = $(addprefix -I, $(D_H)) -O2 -std=gnu99 -W -Wall -Wno-comment -g
+CFLAGS = $(addprefix -I, $(D_H)) -std=gnu99 -W -Wall -Wno-comment -g
 
 ifeq ($(PLATFORM),__UNIX__)
 CFLAGS := $(CFLAGS) -fPIC
