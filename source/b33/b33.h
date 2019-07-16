@@ -36,10 +36,10 @@
 
 #define HEAD_MOTOR_TYPE     LEGO_EV3_M_MOTOR
 #define HEAD_MAX_SPEED      100
-#define HEAD_RAMPTIME_MS    1
+#define HEAD_RAMPTIME_MS    2
 #define HEAD_STOP_MODE      TACHO_BRAKE
 #define HEAD_RUN_MODE       TACHO_RUN_FOREVER
-#define HEAD_STOPPED_SLACK  2						// Change in readings to indicate that head has stopped
+#define HEAD_STOPPED_SLACK  1						// Change in readings to indicate that head has stopped
 
 #define COLOR_READ_INTERVAL (3 * TICKS_PER_MSEC)		// 3 ms
 
