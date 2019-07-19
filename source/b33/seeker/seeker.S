@@ -1517,7 +1517,12 @@ update_behavior_escape_done:
 exit_behavior_escape:
 	BEHAVIOR_EPILOGUE escape
 
-trigger_escape:
+/** Trigger for escape
+ *
+ *    Activated when Sting is active
+ *
+ **/
+	BEHAVIOR_TRIGGER  escape
 	ldr		r1, =sting_activated
 	ldrb	r0, [r1]
 	cmp		r0, #FALSE
@@ -1539,12 +1544,12 @@ trigger_escape:
 
 	BEHAVIOR_EPILOGUE followpath
 
-/** trigger_followpath
+/** Trigger for followpath
  *
  *    Activated when Sting is inactive and Head Position is Down
  *
  **/
-trigger_followpath:
+	BEHAVIOR_TRIGGER  followpath
 #if 0									// Not Activated yet
 
 	ldr		r1, =sting_activated
@@ -1611,12 +1616,12 @@ update_lower_headpos_state:
 exit_behavior_lower_head:
 	BEHAVIOR_EPILOGUE lower_head
 
-/** trigger_lower_head
+/** Trigger for lower_head
  *
  *    Enable Lower Head if Head Position is Up or Unknown
  *
  **/
-trigger_lower_head:
+ 	BEHAVIOR_TRIGGER  lower_head
 	// Check Head Position state
 	ldr		r1, =headpos_state				// Setup head position state pointer
 	ldrb	r0, [r1]
@@ -1662,12 +1667,12 @@ enable_lower_head:
 #endif
 	BEHAVIOR_EPILOGUE idle
 
-/** trigger_idle
+/** Trigger for idle
  *
  *    Always triggered
  *
  **/
-trigger_idle:
+ 	BEHAVIOR_TRIGGER  idle
 	mov		r0, #TRUE
 	mov		pc, lr
 

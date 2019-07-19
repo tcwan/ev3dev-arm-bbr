@@ -141,6 +141,22 @@ exec_\behavior:
 #endif
 	.endm
 
+/** BEHAVIOR_TRIGGER
+ *
+ *	  Define Behavior Trigger routine name
+ *
+ *    The trigger routine name definition
+ *
+ * Parameters:
+ *   behavior: Name of Behavior
+ * Should Return:
+ *   r0: TRUE = Behavior triggered, FALSE = Behavior not triggered
+ **/
+	.macro	BEHAVIOR_TRIGGER behavior
+trigger_\behavior:
+	.endm
+
+
 /** CALL_BEHAVIOR
  *
  *	  Call Non-suppressed Behavior Coroutine using the behavior name
